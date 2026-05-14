@@ -43,7 +43,9 @@ func TestIntegration_GolinqVsPGX(t *testing.T) {
 		t.Skipf("Skipping integration test: cannot connect to DB: %v", err)
 	}
 
-	// Применяем схему (читаем schema.sql)
+	// // Применяем схему (читаем schema.sql)
+	_, err = db.Exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+	require.NoError(t, err)
 	schemaSQL, err := os.ReadFile("schema.sql")
 	require.NoError(t, err)
 	_, err = db.Exec(string(schemaSQL))
