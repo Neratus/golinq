@@ -36,7 +36,7 @@ var queryFuncTemplate = template.Must(fileTemplate.New("queryFunc").Parse(`
 func {{.Name}}(ctx context.Context, db *golinq.DB{{range .Params}}, {{.Name}} {{.Type}}{{end}}) ({{.ResultType}}, error) {
     once{{.Name}}.Do(func() {
         ast := {{.ASTLiteral}}
-        paramValues := []interface{}{}
+        paramValues := make([]interface{}, {{len .Params}})
         sqlStr, _, err := golinq.Generate(ast, db.Dialect(), paramValues)
         cachedSQL{{.Name}} = sqlStr
         cachedErr{{.Name}} = err
