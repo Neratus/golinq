@@ -40,12 +40,12 @@ func scanStruct(rows *sql.Rows, dest interface{}) error {
 					}
 					if after, ok := strings.CutPrefix(part, "column="); ok {
 						// Извлекаем имя колонки без префикса (после последней точки)
-						simpleCol := after
-						if idx := strings.LastIndex(after, "."); idx != -1 {
-							simpleCol = after[idx+1:]
+						simpleColName := colName
+						if idx := strings.LastIndex(colName, "."); idx != -1 {
+							simpleColName = colName[idx+1:]
 						}
 						// Сравниваем как с полным именем, так и с простым
-						if after == colName || simpleCol == colName {
+						if after == colName || after == simpleColName {
 							fieldAddrs[i] = field.Addr().Interface()
 							found = true
 							break
