@@ -82,7 +82,7 @@ func TestGenerateResultStruct_NoJoin(t *testing.T) {
 		},
 		Joins: []golinq.JoinNode{},
 	}
-	modelFields := []myast.StructField{} // не важно
+	modelFields := []myast.StructField{}
 	name, def := generateResultStruct(ast, modelFields)
 	assert.Empty(t, name)
 	assert.Empty(t, def)

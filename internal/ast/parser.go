@@ -361,7 +361,6 @@ func ParseFiles(f string, res *ProjectQueries) error {
 			for _, expr := range x.Values {
 				call, ok := expr.(*ast.CallExpr)
 				if !ok {
-					// Не вызов функции – просто игнорируем
 					continue
 				}
 				var qc QuerySpec

@@ -20,8 +20,7 @@ func TestGenerate_SimpleSelect(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, params, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	// Диалект добавляет ';' в конец
-	expected := `SELECT "users"."id", "users"."name" FROM "users" AS "users";`
+	expected := `SELECT "users"."id" AS "users.id", "users"."name" AS "users.name" FROM "users" AS "users";`
 	assert.Equal(t, expected, sqlStr)
 	assert.Empty(t, params)
 }
@@ -44,7 +43,7 @@ func TestGenerate_WhereWithLiteral(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	expected := `SELECT "users"."age" FROM "users" AS "users" WHERE (users.age >= 18);`
+	expected := `SELECT "users"."age" AS "users.age" FROM "users" AS "users" WHERE ("users"."age" >= 18);`
 	assert.Equal(t, expected, sqlStr)
 }
 
@@ -67,7 +66,7 @@ func TestGenerate_WhereWithParameter(t *testing.T) {
 	paramValues := []interface{}{"Alice"}
 	sqlStr, params, err := Generate(ast, dialect, paramValues)
 	require.NoError(t, err)
-	expected := `SELECT "users"."name" FROM "users" AS "users" WHERE (users.name = $1);`
+	expected := `SELECT "users"."name" AS "users.name" FROM "users" AS "users" WHERE ("users"."name" = $1);`
 	assert.Equal(t, expected, sqlStr)
 	assert.Len(t, params, 1)
 	assert.Equal(t, "Alice", params[0])
@@ -117,7 +116,7 @@ func TestGenerate_WhereAndOr(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	expected := `SELECT "users"."id" FROM "users" AS "users" WHERE ((users.age > 18) AND ((users.status = 'active') OR (users.status = 'pending')));`
+	expected := `SELECT "users"."id" AS "users.id" FROM "users" AS "users" WHERE (("users"."age" > 18) AND (("users"."status" = 'active') OR ("users"."status" = 'pending')));`
 	assert.Equal(t, expected, sqlStr)
 }
 
@@ -146,7 +145,7 @@ func TestGenerate_Join(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	expected := `SELECT "users"."name", "orders"."amount" FROM "users" AS "users" INNER JOIN "orders" AS "orders" ON (users.id = orders.user_id);`
+	expected := `SELECT "users"."name" AS "users.name", "orders"."amount" AS "orders.amount" FROM "users" AS "users" INNER JOIN "orders" AS "orders" ON ("users"."id" = "orders"."user_id");`
 	assert.Equal(t, expected, sqlStr)
 }
 
@@ -174,7 +173,7 @@ func TestGenerate_LeftJoin(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	expected := `SELECT "users"."name" FROM "users" AS "users" LEFT JOIN "orders" AS "orders" ON (users.id = orders.user_id);`
+	expected := `SELECT "users"."name" AS "users.name" FROM "users" AS "users" LEFT JOIN "orders" AS "orders" ON ("users"."id" = "orders"."user_id");`
 	assert.Equal(t, expected, sqlStr)
 }
 
@@ -194,7 +193,7 @@ func TestGenerate_OrderBy(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	expected := `SELECT "users"."id" FROM "users" AS "users" ORDER BY "users"."age" DESC;`
+	expected := `SELECT "users"."id" AS "users.id" FROM "users" AS "users" ORDER BY "users"."age" DESC;`
 	assert.Equal(t, expected, sqlStr)
 }
 
@@ -210,7 +209,7 @@ func TestGenerate_LimitOffset(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	expected := `SELECT "users"."name" FROM "users" AS "users" LIMIT 10 OFFSET 5;`
+	expected := `SELECT "users"."name" AS "users.name" FROM "users" AS "users" LIMIT 10 OFFSET 5;`
 	assert.Equal(t, expected, sqlStr)
 }
 
@@ -231,7 +230,7 @@ func TestGenerate_LikeContains(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	expected := `SELECT "users"."name" FROM "users" AS "users" WHERE users.name LIKE '%' || 'john' || '%';`
+	expected := `SELECT "users"."name" AS "users.name" FROM "users" AS "users" WHERE "users"."name" LIKE '%' || 'john' || '%';`
 	assert.Equal(t, expected, sqlStr)
 }
 
@@ -253,7 +252,7 @@ func TestGenerate_LikeHasPrefix(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	expected := `SELECT "users"."name" FROM "users" AS "users" WHERE users.name LIKE 'john' || '%';`
+	expected := `SELECT "users"."name" AS "users.name" FROM "users" AS "users" WHERE "users"."name" LIKE 'john' || '%';`
 	assert.Equal(t, expected, sqlStr)
 }
 
@@ -289,7 +288,7 @@ func TestGenerate_MultipleParams(t *testing.T) {
 	paramValues := []interface{}{18, "Alice"}
 	sqlStr, params, err := Generate(ast, dialect, paramValues)
 	require.NoError(t, err)
-	expected := `SELECT "users"."id" FROM "users" AS "users" WHERE ((users.age > $1) AND (users.name = $2));`
+	expected := `SELECT "users"."id" AS "users.id" FROM "users" AS "users" WHERE (("users"."age" > $1) AND ("users"."name" = $2));`
 	assert.Equal(t, expected, sqlStr)
 	assert.Equal(t, []interface{}{18, "Alice"}, params)
 }
@@ -305,7 +304,7 @@ func TestGenerate_NilWhere(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	expected := `SELECT "users"."id" FROM "users" AS "users";`
+	expected := `SELECT "users"."id" AS "users.id" FROM "users" AS "users";`
 	assert.Equal(t, expected, sqlStr)
 }
 
@@ -334,8 +333,6 @@ func TestGenerate_EmptySelectFields(t *testing.T) {
 	assert.Equal(t, expected, sqlStr)
 }
 
-// Тест экранирования кавычек – упрощён, так как точное поведение quoteIdentifier может меняться.
-// Проверяем только, что ошибки нет и SQL содержит экранированные имена.
 func TestGenerate_QuoteIdentifier(t *testing.T) {
 	ast := &SelectQueryAST{
 		SelectFields: []SelectField{{TableAlias: `my"table`, ColumnName: `col"name`}},
@@ -344,7 +341,6 @@ func TestGenerate_QuoteIdentifier(t *testing.T) {
 	dialect := postgres_dialect.NewPostgresDialect()
 	sqlStr, _, err := Generate(ast, dialect, nil)
 	require.NoError(t, err)
-	// Просто проверяем, что строка содержит экранированные кавычки (хотя бы две подряд)
 	assert.Contains(t, sqlStr, `""`)
 	assert.Contains(t, sqlStr, `;`)
 }
@@ -374,7 +370,6 @@ func TestGenerate_MissingDialectOperators(t *testing.T) {
 		InnerJoin:           "INNER JOIN",
 		LeftJoin:            "LEFT JOIN",
 		PlaceholderTemplate: "$%d",
-		// AND, OR, NOT, LikeOp, Limit, Offset пустые
 	}
 	ast := &SelectQueryAST{
 		SelectFields: []SelectField{{TableAlias: "users", ColumnName: "id"}},

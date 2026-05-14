@@ -7,7 +7,6 @@ import (
 )
 
 func (queries *ProjectQueries) Validate() error {
-	// Валидация предикатов
 	for _, predicate := range queries.Predicates {
 		if predicate.LinkedFuncName != nil && *predicate.LinkedFuncName != "" && len(predicate.Args) == 0 {
 			key := predicate.PackageName + "." + *predicate.LinkedFuncName
@@ -49,7 +48,6 @@ func (queries *ProjectQueries) Validate() error {
 		}
 	}
 
-	// Валидация JOIN
 	for _, join := range queries.Joins {
 		if _, ok := queries.Models[join.LeftModelType]; !ok {
 			return &ValidationError{Message: "Join " + join.JoinName + " has left argument of type " + join.LeftModelType + " which does not match any model"}
@@ -91,7 +89,6 @@ func (queries *ProjectQueries) Validate() error {
 		}
 	}
 
-	// Валидация запросов
 	for _, call := range queries.QueryCalls {
 		fullModelName := call.StructName
 		model, ok := queries.Models[fullModelName]
@@ -99,22 +96,19 @@ func (queries *ProjectQueries) Validate() error {
 			return &ValidationError{Message: "Query call on struct " + call.StructName + " but struct type is not defined in any model"}
 		}
 
-		// 1. Построить маппинг алиас таблицы -> мета-модель
 		aliasToModel := make(map[string]*ModelMeta)
 		currentAlias := extractShortName(call.StructName)
 		aliasToModel[currentAlias] = model
 
-		// 2. Пройти по шагам (JOIN), чтобы зарегистрировать все алиасы и обновить currentAlias
 		for _, step := range call.Steps {
 			if step.Type == StepJoin {
-				join, ok := queries.Joins[step.Join] // используем имя, а не JoinRef
+				join, ok := queries.Joins[step.Join]
 				if !ok {
 					return &ValidationError{Message: fmt.Sprintf("join %s not defined", step.Join)}
 				}
 				leftShort := extractShortName(join.LeftModelType)
 				rightShort := extractShortName(join.RightModelType)
 
-				// Добавляем правую модель, если её ещё нет
 				if _, exists := aliasToModel[rightShort]; !exists {
 					rightModel, ok := queries.Models[join.RightModelType]
 					if !ok {
@@ -122,7 +116,6 @@ func (queries *ProjectQueries) Validate() error {
 					}
 					aliasToModel[rightShort] = rightModel
 				}
-				// Левая модель уже должна быть (иначе JOIN не прошёл бы предыдущую валидацию)
 				if _, exists := aliasToModel[leftShort]; !exists {
 					leftModel, ok := queries.Models[join.LeftModelType]
 					if !ok {
@@ -131,7 +124,6 @@ func (queries *ProjectQueries) Validate() error {
 					aliasToModel[leftShort] = leftModel
 				}
 
-				// Обновляем текущий алиас после JOIN (как в оригинальной логике)
 				if currentAlias == leftShort {
 					currentAlias = rightShort
 				} else if currentAlias == rightShort {
@@ -142,7 +134,6 @@ func (queries *ProjectQueries) Validate() error {
 			}
 		}
 
-		// 3. Проверить поля SELECT
 		for _, sel := range call.SelectCols {
 			alias := sel.TableAlias
 			colName := sel.ColumnName
@@ -165,7 +156,6 @@ func (queries *ProjectQueries) Validate() error {
 			}
 		}
 
-		// 4. Проверить цепочку WHERE/JOIN (оставляем оригинальную логику)
 		currentModelForSteps := call.StructName
 		for i, step := range call.Steps {
 			switch step.Type {
@@ -218,7 +208,6 @@ func (queries *ProjectQueries) Validate() error {
 			}
 		}
 
-		// 5. Проверить OrderBy
 		if call.OrderBy != nil {
 			orderField := call.OrderBy.Field
 			if idx := strings.Index(orderField, "."); idx != -1 {
@@ -237,7 +226,6 @@ func (queries *ProjectQueries) Validate() error {
 		}
 	}
 
-	// Удалить неиспользованные функции
 	toDelete := []string{}
 	for key, fun := range queries.FuncDecls {
 		if !fun.IsUsed {

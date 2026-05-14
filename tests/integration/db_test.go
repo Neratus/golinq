@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Вспомогательные типы для ручного сравнения
 type CountrySimple struct {
 	Name       string
 	Population int64
@@ -27,23 +26,19 @@ type CountryLanguageManual struct {
 }
 
 func TestIntegration_GolinqVsPGX(t *testing.T) {
-	// Читаем DSN из переменной окружения или используем значение по умолчанию
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
 		dsn = "postgres://test:test@localhost:5433/testdb?sslmode=disable"
 	}
 
-	// Открываем соединение через стандартный database/sql (драйвер pgx)
 	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
 	defer db.Close()
 
-	// Проверяем подключение
 	if err := db.Ping(); err != nil {
 		t.Skipf("Skipping integration test: cannot connect to DB: %v", err)
 	}
 
-	// // Применяем схему (читаем schema.sql)
 	_, err = db.Exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
 	require.NoError(t, err)
 	schemaSQL, err := os.ReadFile("schema.sql")
@@ -51,28 +46,16 @@ func TestIntegration_GolinqVsPGX(t *testing.T) {
 	_, err = db.Exec(string(schemaSQL))
 	require.NoError(t, err)
 
-	// Создаём golinq.DB
 	gdb, err := golinq.Connect(dsn)
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	// ========================================================================
-	// Тест 1: Простой SELECT с WHERE и ORDER BY (без JOIN)
-	// ========================================================================
 	t.Run("SelectCountriesWithPopulationGreaterThan100M", func(t *testing.T) {
-		// Ожидаемый результат: USA и Mexico (население > 100 млн)
-		expectedNames := []string{"Mexico", "USA"} // по убыванию населения
+		expectedNames := []string{"Mexico", "USA"}
 
-		// Вызов сгенерированной функции (имя известно из golinq_queries.gen.go)
-		// В реальном коде имя будет с хешем, но мы его берём из сгенерированного файла.
-		// Для читаемости используем константу, которую можно обновить после генерации.
-		// В тесте мы можем получить функцию через рефлексию или просто захардкодить.
-		// Здесь используется имя, сгенерированное в примере (надо подставить своё).
-		// Чтобы избежать ручного обновления, напишем вспомогательную функцию вызова по имени.
 		golinqRows, err := Query_Getmodels_Country_CountryPopulationHigh_Select(ctx, gdb)
 		require.NoError(t, err)
 
-		// Выполняем ручной SQL через pgx
 		pgxRows, err := queryManualCountries(db, ctx)
 		require.NoError(t, err)
 
@@ -84,9 +67,6 @@ func TestIntegration_GolinqVsPGX(t *testing.T) {
 		}
 	})
 
-	// ========================================================================
-	// Тест 2: SELECT с JOIN (многие-ко-многим: Country ↔ Language)
-	// ========================================================================
 	t.Run("SelectCountriesWithLanguages", func(t *testing.T) {
 		golinqRows, err := Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJoin_Select(ctx, gdb)
 		require.NoError(t, err)
@@ -96,7 +76,6 @@ func TestIntegration_GolinqVsPGX(t *testing.T) {
 
 		assert.Equal(t, len(pgxRows), len(golinqRows))
 		for i := range golinqRows {
-			// Используем правильные имена полей из сгенерированной структуры
 			assert.Equal(t, pgxRows[i].CountryID, golinqRows[i].CountryId)
 			assert.Equal(t, pgxRows[i].CountryName, golinqRows[i].CountryName)
 			assert.Equal(t, pgxRows[i].LanguageName, golinqRows[i].LanguageName)

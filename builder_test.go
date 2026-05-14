@@ -68,9 +68,7 @@ func TestBuildExpr_AndOr(t *testing.T) {
 
 	assert.Equal(t, Or, node.Type)
 	assert.Len(t, node.Children, 2)
-	// левый ребёнок – And
 	assert.Equal(t, And, node.Children[0].Type)
-	// правый ребёнок – сравнение status == "pending"
 	assert.Equal(t, Cmp, node.Children[1].Type)
 }
 
@@ -78,7 +76,7 @@ func TestBuildExpr_WithParameter(t *testing.T) {
 	expr := parseExpr(t, `u.Age > minAge`)
 	paramNames := map[string]int{"u": 0, "minAge": 1}
 	paramToAlias := map[string]string{"u": "User"}
-	args := []ast.Expr{parseExpr(t, `18`)} // значение для minAge (индекс 1)
+	args := []ast.Expr{parseExpr(t, `18`)}
 	models := make(map[string]*myast.ModelMeta)
 
 	node, err := buildExpr(expr, paramNames, args, paramToAlias, models, false, nil)
@@ -86,7 +84,6 @@ func TestBuildExpr_WithParameter(t *testing.T) {
 
 	assert.Equal(t, Cmp, node.Type)
 	assert.Equal(t, "GT", node.Value)
-	// правый ребёнок должен быть константой 18
 	right := node.Children[1]
 	assert.Equal(t, Const, right.Type)
 	assert.Equal(t, 18, right.Value)
@@ -121,9 +118,7 @@ func TestBuildExpr_LikeContains(t *testing.T) {
 	assert.Equal(t, Like, node.Type)
 	assert.Nil(t, node.Value)
 	assert.Len(t, node.Children, 2)
-	// левый ребёнок – поле
 	assert.Equal(t, Field, node.Children[0].Type)
-	// правый – константа "john"
 	assert.Equal(t, Const, node.Children[1].Type)
 	assert.Equal(t, "john", node.Children[1].Value)
 }
@@ -144,10 +139,9 @@ func TestBuildExpr_UserFunc(t *testing.T) {
 	assert.Equal(t, Const, node.Children[1].Type)
 }
 
-// Тест BuildSelectAstTree для простого запроса без JOIN
 func TestBuildSelectAstTree_NoJoin(t *testing.T) {
 	models := map[string]*myast.ModelMeta{
-		"User": { // ключ без пакета, т.к. qspec.StructName = "User"
+		"User": {
 			StructName: "User",
 			TableName:  "user",
 			Fields: []myast.StructField{
@@ -157,11 +151,10 @@ func TestBuildSelectAstTree_NoJoin(t *testing.T) {
 			},
 		},
 	}
-	// Создаём предикат с правильным FuncBody
 	predMeta := &myast.PredicateMeta{
 		PredicateName: "Adult",
 		PackageName:   "predicates",
-		ModelType:     "User", // важно: должно совпадать с именем модели в maps
+		ModelType:     "User",
 		Args: []*myast.PredicateArg{
 			{Name: "u", TypeName: "User", PackageName: "", Declared: false},
 		},
@@ -238,7 +231,6 @@ func TestBuildSelectAstTree_WithJoin(t *testing.T) {
 		},
 	}
 
-	// JOIN мета с заполненными LeftArg и RightArg
 	joinMeta := &myast.JoinMeta{
 		JoinName:       "UserOrderJoin",
 		PackageName:    "joins",
@@ -278,7 +270,6 @@ func TestBuildSelectAstTree_WithJoin(t *testing.T) {
 		StructName:  "User",
 		SelectCols: []myast.SelectFieldSpec{
 			{ColumnName: "ID"},
-			{ColumnName: "Name"},
 		},
 		Steps: []myast.QueryStep{
 			{

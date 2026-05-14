@@ -36,11 +36,9 @@ func generateResultStruct(ast *golinq.SelectQueryAST, modelFields []myast.Struct
 	if len(ast.Joins) == 0 {
 		return "", ""
 	}
-	// Если выбраны все поля основной модели, тоже не генерируем (опционально)
 	if len(ast.SelectFields) == len(modelFields) && len(ast.Joins) == 0 {
 		return "", ""
 	}
-	// Имя структуры
 	baseName := ast.From.Alias
 	joinName := ast.Joins[0].Right.Alias
 	structName = "Result_" + baseName + "_" + joinName
@@ -51,13 +49,11 @@ func generateResultStruct(ast *golinq.SelectQueryAST, modelFields []myast.Struct
 	defBuilder.WriteString(" struct {\n")
 
 	for _, f := range ast.SelectFields {
-		// Имя поля в структуре: Алиас + имя колонки в CamelCase
 		fieldName := toCamelCase(f.TableAlias + "_" + f.ColumnName)
 		defBuilder.WriteString("\t")
 		defBuilder.WriteString(fieldName)
 		defBuilder.WriteString(" ")
 		defBuilder.WriteString(f.GoType)
-		// В теге указываем полное имя колонки: "TableAlias.ColumnName"
 		defBuilder.WriteString(" `golinq:\"column=")
 		defBuilder.WriteString(f.TableAlias + "." + f.ColumnName)
 		defBuilder.WriteString("\"`")

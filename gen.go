@@ -153,9 +153,7 @@ func Generate(ast *SelectQueryAST, dialect *dialect.SQLDialect, paramValues []in
 		if i > 0 {
 			query.WriteString(", ")
 		}
-		// Исходное выражение: таблица.колонка
 		colExpr := quoteIdentifier(dialect, f.TableAlias) + "." + quoteIdentifier(dialect, f.ColumnName)
-		// Уникальный алиас: TableAlias.ColumnName (без кавычек, но с экранированием)
 		alias := f.TableAlias + "." + f.ColumnName
 		query.WriteString(colExpr + " AS " + quoteIdentifier(dialect, alias))
 	}
@@ -246,6 +244,5 @@ func Generate(ast *SelectQueryAST, dialect *dialect.SQLDialect, paramValues []in
 		query.WriteString(dialect.QueryEnd)
 	}
 
-	fmt.Println(query.String(), params)
 	return query.String(), params, nil
 }

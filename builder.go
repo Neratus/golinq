@@ -279,7 +279,6 @@ func constructPredNode(pred *go_ast.PredicateMeta, args []ast.Expr, currentAlias
 	return buildExpr(returnExpr.Results[0], paramNames, args, paramToAlias, models, false, imports)
 }
 
-// extractShortName возвращает имя структуры без пакета
 func extractShortName(full string) string {
 	if idx := strings.LastIndex(full, "."); idx != -1 {
 		return full[idx+1:]
@@ -287,7 +286,6 @@ func extractShortName(full string) string {
 	return full
 }
 
-// getModelByFullName ищет модель по полному имени (с пакетом) или по короткому имени
 func getModelByFullName(fullName string, models map[string]*go_ast.ModelMeta) (*go_ast.ModelMeta, error) {
 	if model, ok := models[fullName]; ok {
 		return model, nil
@@ -310,7 +308,6 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 		imports = fi.Imports
 	}
 
-	// Построить маппинг алиас таблицы -> модель
 	aliasToModel := make(map[string]*go_ast.ModelMeta)
 	currentModel, err := getModelByFullName(res.StructName, models)
 	if err != nil {
@@ -319,7 +316,6 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 	currentAlias := currentModel.StructName
 	aliasToModel[currentAlias] = currentModel
 
-	// Зарегистрировать все модели из JOIN
 	for _, step := range res.Steps {
 		if step.Type == go_ast.StepJoin {
 			join := step.JoinRef
@@ -342,7 +338,6 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 		}
 	}
 
-	// Построить узлы JOIN (с условиями ON) и одновременно обновлять текущий алиас для WHERE
 	currentAliasForJoins := currentModel.StructName
 	for _, step := range res.Steps {
 		if step.Type == go_ast.StepJoin {
@@ -369,7 +364,6 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 		}
 	}
 
-	// Построить узел WHERE, обновляя текущий алиас при проходе по шагам
 	curAlias := currentModel.StructName
 	for _, step := range res.Steps {
 		if step.Type == go_ast.StepWhere {
@@ -402,14 +396,13 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 		queryMethod = ToList
 	}
 
-	// Построить SelectFields на основе res.SelectCols (теперь []SelectFieldSpec)
 	var selectFields []SelectField
 	if len(res.SelectCols) != 0 {
 		for _, selSpec := range res.SelectCols {
 			alias := selSpec.TableAlias
 			colName := selSpec.ColumnName
 			if alias == "" {
-				alias = curAlias // текущий алиас после всех шагов
+				alias = curAlias
 			}
 			model, ok := aliasToModel[alias]
 			if !ok {
@@ -432,7 +425,6 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 			})
 		}
 	} else {
-		// Если SelectCols не указаны, выбираем все поля из текущей модели
 		model, ok := aliasToModel[curAlias]
 		if !ok {
 			return nil, fmt.Errorf("current model alias %s not found in alias map", curAlias)
@@ -448,14 +440,12 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 
 	var orderByClause *OrderByClause
 	if res.OrderBy != nil {
-		// Разбираем "Country.Name" на алиас и имя поля
 		parts := strings.SplitN(res.OrderBy.Field, ".", 2)
 		var alias, fieldName string
 		if len(parts) == 2 {
 			alias = parts[0]
 			fieldName = parts[1]
 		} else {
-			// если нет точки, используем текущий алиас
 			alias = curAlias
 			fieldName = res.OrderBy.Field
 		}
