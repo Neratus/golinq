@@ -2,7 +2,7 @@ package golinq
 
 type PredicateSpec[T any] struct{}
 
-func Predicate[T any](fn func(T) bool) PredicateSpec[T] {
+func Predicate[T any](fn any) PredicateSpec[T] {
 	return PredicateSpec[T]{}
 }
 

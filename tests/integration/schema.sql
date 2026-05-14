@@ -1,4 +1,3 @@
--- Таблица стран
 CREATE TABLE IF NOT EXISTS country (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
@@ -6,7 +5,6 @@ CREATE TABLE IF NOT EXISTS country (
     area NUMERIC(12,2)
 );
 
--- Таблица городов (один-ко-многим)
 CREATE TABLE IF NOT EXISTS city (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
@@ -14,7 +12,6 @@ CREATE TABLE IF NOT EXISTS city (
     country_id UUID NOT NULL REFERENCES country(id) ON DELETE CASCADE
 );
 
--- Таблица языков (многие-ко-многим через связующую таблицу)
 CREATE TABLE IF NOT EXISTS language (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL UNIQUE,
@@ -28,7 +25,6 @@ CREATE TABLE IF NOT EXISTS country_language (
     PRIMARY KEY (country_id, language_id)
 );
 
--- Вставка тестовых данных
 INSERT INTO country (id, name, population, area) VALUES 
     ('11111111-1111-1111-1111-111111111111', 'USA', 331000000, 9833517),
     ('22222222-2222-2222-2222-222222222222', 'Canada', 38000000, 9984670),
