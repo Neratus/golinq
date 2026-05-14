@@ -9,6 +9,7 @@ package {{.Package}}
 
 import (
     "context"
+    "sync"
     "github.com/Neratus/golinq"
     {{- range $alias, $path := .ModelImports}}
     {{$alias}} "{{$path}}"
@@ -20,6 +21,12 @@ import (
 {{end}}
 
 {{range .Queries}}
+var (
+    once{{.Name}}   sync.Once
+    cachedSQL{{.Name}} string
+    cachedErr{{.Name}} error
+)
+
 {{template "queryFunc" .}}
 {{end}}
 `))
@@ -27,16 +34,22 @@ import (
 var queryFuncTemplate = template.Must(fileTemplate.New("queryFunc").Parse(`
 // {{.Name}} executes a pre-generated query.
 func {{.Name}}(ctx context.Context, db *golinq.DB{{range .Params}}, {{.Name}} {{.Type}}{{end}}) ({{.ResultType}}, error) {
-    ast := {{.ASTLiteral}}
-    paramValues := []interface{}{ {{range $i, $p := .Params}}{{if $i}}, {{end}}{{$p.Name}}{{end}} }
-    sqlStr, params, err := golinq.Generate(ast, db.Dialect(), paramValues)
-    if err != nil {
-        return nil, err
+    once{{.Name}}.Do(func() {
+        ast := {{.ASTLiteral}}
+        paramValues := []interface{}{}
+        sqlStr, _, err := golinq.Generate(ast, db.Dialect(), paramValues)
+        cachedSQL{{.Name}} = sqlStr
+        cachedErr{{.Name}} = err
+    })
+    if cachedErr{{.Name}} != nil {
+        return nil, cachedErr{{.Name}}
     }
+
+    actualParams := []interface{}{ {{range $i, $p := .Params}}{{if $i}}, {{end}}{{$p.Name}}{{end}} }
     {{if eq .Method "ToList"}}
-    return golinq.QueryRows[{{.ModelType}}](ctx, db, sqlStr, params...)
+    return golinq.QueryRows[{{.ModelType}}](ctx, db, cachedSQL{{.Name}}, actualParams...)
     {{else}}
-    return golinq.QueryRow[{{.ModelType}}](ctx, db, sqlStr, params...)
+    return golinq.QueryRow[{{.ModelType}}](ctx, db, cachedSQL{{.Name}}, actualParams...)
     {{end}}
 }
 `))
