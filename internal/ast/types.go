@@ -86,7 +86,7 @@ type QuerySpec struct {
 	PackageName      string
 	PackagePath      string
 	StructName       string
-	SelectCols       []string
+	SelectCols       []SelectFieldSpec
 	Steps            []QueryStep
 	LimitVal         int
 	OffsetVal        int
@@ -94,6 +94,11 @@ type QuerySpec struct {
 	Method           string
 	ModelImportPath  string
 	ModelImportAlias string
+}
+
+type SelectFieldSpec struct {
+	TableAlias string
+	ColumnName string
 }
 
 type FileImports struct {

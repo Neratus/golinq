@@ -50,6 +50,7 @@ func generateResultStruct(ast *golinq.SelectQueryAST, modelFields []myast.Struct
 	if !hasNonMainField {
 		return "", ""
 	}
+	// Хеш для уникальности имени структуры
 	var hashBuilder strings.Builder
 	for _, f := range ast.SelectFields {
 		hashBuilder.WriteString(f.TableAlias)
@@ -62,12 +63,15 @@ func generateResultStruct(ast *golinq.SelectQueryAST, modelFields []myast.Struct
 	baseName := ast.From.Alias
 	joinName := ast.Joins[0].Right.Alias
 	structName = "Result_" + baseName + "_" + joinName
+
 	var defBuilder strings.Builder
 	defBuilder.WriteString("type ")
 	defBuilder.WriteString(structName)
 	defBuilder.WriteString(" struct {\n")
+
 	for _, f := range ast.SelectFields {
-		fieldName := toCamelCase(f.ColumnName)
+		// Генерируем имя поля: Алиас + имя колонки в CamelCase
+		fieldName := toCamelCase(f.TableAlias + "_" + f.ColumnName)
 		defBuilder.WriteString("\t")
 		defBuilder.WriteString(fieldName)
 		defBuilder.WriteString(" ")

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-go test -covermode=atomic -coverprofile=coverage.out ./internal/...
+go test -covermode=atomic -coverprofile=coverage.out .
 
 go tool cover -html=coverage.out -o coverage.html
 

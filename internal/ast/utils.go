@@ -94,3 +94,10 @@ func trimPackage(typeName string) string {
 	parts := strings.Split(typeName, ".")
 	return parts[len(parts)-1]
 }
+
+func extractShortName(full string) string {
+	if idx := strings.LastIndex(full, "."); idx != -1 {
+		return full[idx+1:]
+	}
+	return full
+}

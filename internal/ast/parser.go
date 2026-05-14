@@ -217,8 +217,20 @@ func parseSelectCall(call *ast.CallExpr, fset *token.FileSet, query *QuerySpec) 
 		if !ok || lit.Kind != token.STRING {
 			return fmt.Errorf("Select column argument must be a string literal")
 		}
-		colName := strings.Trim(lit.Value, `"`)
-		query.SelectCols = append(query.SelectCols, colName)
+		colSpec := strings.Trim(lit.Value, `"`)
+		var alias, colName string
+		if strings.Contains(colSpec, ".") {
+			parts := strings.SplitN(colSpec, ".", 2)
+			alias = parts[0]
+			colName = parts[1]
+		} else {
+			alias = ""
+			colName = colSpec
+		}
+		query.SelectCols = append(query.SelectCols, SelectFieldSpec{
+			TableAlias: alias,
+			ColumnName: colName,
+		})
 	}
 
 	return nil
@@ -531,8 +543,6 @@ func ParseFiles(f string, res *ProjectQueries) error {
 						key := fmt.Sprintf("%d&%s@%d", key_num, file.Name.Name, len(queryCalls))
 						key_num++
 						queryCalls[key] = &qc
-					} else if err != nil {
-						fmt.Printf("DEBUG: parseQueryCall error in %s: %v\n", f, err)
 					}
 				}
 			}
@@ -545,8 +555,6 @@ func ParseFiles(f string, res *ProjectQueries) error {
 					key := fmt.Sprintf("%d&%s@%d", key_num, file.Name.Name, len(queryCalls))
 					key_num++
 					queryCalls[key] = &qc
-				} else if err != nil {
-					fmt.Printf("DEBUG: parseQueryCall error in %s: %v\n", f, err)
 				}
 			}
 		}

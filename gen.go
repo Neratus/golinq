@@ -238,5 +238,6 @@ func Generate(ast *SelectQueryAST, dialect *dialect.SQLDialect, paramValues []in
 		query.WriteString(dialect.QueryEnd)
 	}
 
+	fmt.Println(query.String(), params)
 	return query.String(), params, nil
 }

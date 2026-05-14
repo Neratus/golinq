@@ -4,21 +4,32 @@ package integration
 
 import (
 	"context"
-	models "golinq/tests/integration/models"
-
 	"github.com/Neratus/golinq"
+	models "golinq/tests/integration/models"
 )
+
+type Result_Country_City struct {
+	CityId   string `golinq:"column=id"`
+	CityName string `golinq:"column=name"`
+}
+
+type Result_Country_CountryLanguage struct {
+	CountryId    string `golinq:"column=id"`
+	CountryName  string `golinq:"column=name"`
+	LanguageName string `golinq:"column=name"`
+	LanguageCode string `golinq:"column=code"`
+}
 
 // Query_Getmodels_Country_CountryPopulationHigh_Select executes a pre-generated query.
 func Query_Getmodels_Country_CountryPopulationHigh_Select(ctx context.Context, db *golinq.DB) ([]models.Country, error) {
 	ast := &golinq.SelectQueryAST{
 		SelectFields: []golinq.SelectField{
-			{TableAlias: "models.Country", ColumnName: "id"},
-			{TableAlias: "models.Country", ColumnName: "name"},
-			{TableAlias: "models.Country", ColumnName: "population"},
-			{TableAlias: "models.Country", ColumnName: "area"},
+			{TableAlias: "Country", ColumnName: "id"},
+			{TableAlias: "Country", ColumnName: "name"},
+			{TableAlias: "Country", ColumnName: "population"},
+			{TableAlias: "Country", ColumnName: "area"},
 		},
-		From:  golinq.Relation{Name: "country", Alias: "models.Country"},
+		From:  golinq.Relation{Name: "country", Alias: "Country"},
 		Joins: []golinq.JoinNode{},
 		Where: &golinq.ConditionNode{
 			Type: golinq.And,
@@ -29,7 +40,7 @@ func Query_Getmodels_Country_CountryPopulationHigh_Select(ctx context.Context, d
 					Children: []*golinq.ConditionNode{
 						&golinq.ConditionNode{
 							Type:  golinq.Field,
-							Value: "models.Country.",
+							Value: "Country.population",
 						},
 						&golinq.ConditionNode{
 							Type:  golinq.Const,
@@ -40,7 +51,7 @@ func Query_Getmodels_Country_CountryPopulationHigh_Select(ctx context.Context, d
 			},
 		},
 		OrderBy: &golinq.OrderByClause{
-			TableAlias: "models.Country",
+			TableAlias: "Country",
 			Field:      "Population",
 			MappingSQL: "population",
 			Desc:       true,
@@ -60,13 +71,13 @@ func Query_Getmodels_Country_CountryPopulationHigh_Select(ctx context.Context, d
 }
 
 // Query_Getmodels_Country_CountryCityJoin_Select executes a pre-generated query.
-func Query_Getmodels_Country_CountryCityJoin_Select(ctx context.Context, db *golinq.DB) ([]models.Country, error) {
+func Query_Getmodels_Country_CountryCityJoin_Select(ctx context.Context, db *golinq.DB) ([]Result_Country_City, error) {
 	ast := &golinq.SelectQueryAST{
 		SelectFields: []golinq.SelectField{
-			{TableAlias: "models.Country", ColumnName: "id"},
-			{TableAlias: "models.Country", ColumnName: "name"},
+			{TableAlias: "City", ColumnName: "id"},
+			{TableAlias: "City", ColumnName: "name"},
 		},
-		From: golinq.Relation{Name: "country", Alias: "models.Country"},
+		From: golinq.Relation{Name: "country", Alias: "Country"},
 		Joins: []golinq.JoinNode{
 			{
 				Type:  "INNER",
@@ -78,7 +89,7 @@ func Query_Getmodels_Country_CountryCityJoin_Select(ctx context.Context, db *gol
 					Children: []*golinq.ConditionNode{
 						&golinq.ConditionNode{
 							Type:  golinq.Field,
-							Value: "models.Country.",
+							Value: "Country.id",
 						},
 						&golinq.ConditionNode{
 							Type:  golinq.Field,
@@ -102,18 +113,20 @@ func Query_Getmodels_Country_CountryCityJoin_Select(ctx context.Context, db *gol
 		return nil, err
 	}
 
-	return golinq.QueryRows[models.Country](ctx, db, sqlStr, params...)
+	return golinq.QueryRows[Result_Country_City](ctx, db, sqlStr, params...)
 
 }
 
 // Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJoin_Select executes a pre-generated query.
-func Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJoin_Select(ctx context.Context, db *golinq.DB) ([]models.Country, error) {
+func Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJoin_Select(ctx context.Context, db *golinq.DB) ([]Result_Country_CountryLanguage, error) {
 	ast := &golinq.SelectQueryAST{
 		SelectFields: []golinq.SelectField{
-			{TableAlias: "models.Country", ColumnName: "id"},
-			{TableAlias: "models.Country", ColumnName: "name"},
+			{TableAlias: "Country", ColumnName: "id"},
+			{TableAlias: "Country", ColumnName: "name"},
+			{TableAlias: "Language", ColumnName: "name"},
+			{TableAlias: "Language", ColumnName: "code"},
 		},
-		From: golinq.Relation{Name: "country", Alias: "models.Country"},
+		From: golinq.Relation{Name: "country", Alias: "Country"},
 		Joins: []golinq.JoinNode{
 			{
 				Type:  "INNER",
@@ -125,7 +138,7 @@ func Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJ
 					Children: []*golinq.ConditionNode{
 						&golinq.ConditionNode{
 							Type:  golinq.Field,
-							Value: "models.Country.",
+							Value: "Country.id",
 						},
 						&golinq.ConditionNode{
 							Type:  golinq.Field,
@@ -168,6 +181,6 @@ func Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJ
 		return nil, err
 	}
 
-	return golinq.QueryRows[models.Country](ctx, db, sqlStr, params...)
+	return golinq.QueryRows[Result_Country_CountryLanguage](ctx, db, sqlStr, params...)
 
 }

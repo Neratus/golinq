@@ -31,7 +31,6 @@ func buildExpr(expr ast.Expr, paramNames map[string]int, args []ast.Expr, paramT
 			return buildExpr(args[idx-1], paramNames, args, paramToAlias, models, isFunc, imports)
 		}
 		param += 1
-
 		return &ConditionNode{
 			Type:       Param,
 			Value:      n.Name,
@@ -94,13 +93,11 @@ func buildExpr(expr ast.Expr, paramNames map[string]int, args []ast.Expr, paramT
 		default:
 			return nil, fmt.Errorf("unsupported binary operator: %v", n.Op)
 		}
-
 		return &ConditionNode{
 			Type:     opType,
 			Value:    opVal,
 			Children: []*ConditionNode{leftNode, rightNode},
 		}, nil
-
 	case *ast.SelectorExpr:
 		if ident, ok := n.X.(*ast.Ident); ok {
 			if _, ok := paramNames[ident.Name]; ok {
@@ -276,13 +273,32 @@ func constructPredNode(pred *go_ast.PredicateMeta, args []ast.Expr, currentAlias
 	for i, arg := range pred.Args {
 		paramNames[arg.Name] = i
 	}
-
 	if len(pred.Args) > 0 {
 		paramToAlias[pred.Args[0].Name] = currentAlias
 	}
-
 	return buildExpr(returnExpr.Results[0], paramNames, args, paramToAlias, models, false, imports)
+}
 
+// extractShortName возвращает имя структуры без пакета
+func extractShortName(full string) string {
+	if idx := strings.LastIndex(full, "."); idx != -1 {
+		return full[idx+1:]
+	}
+	return full
+}
+
+// getModelByFullName ищет модель по полному имени (с пакетом) или по короткому имени
+func getModelByFullName(fullName string, models map[string]*go_ast.ModelMeta) (*go_ast.ModelMeta, error) {
+	if model, ok := models[fullName]; ok {
+		return model, nil
+	}
+	short := extractShortName(fullName)
+	for _, m := range models {
+		if m.StructName == short {
+			return m, nil
+		}
+	}
+	return nil, fmt.Errorf("model %s not found", fullName)
 }
 
 func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMeta, fileImports map[string]*go_ast.FileImports) (*SelectQueryAST, error) {
@@ -293,41 +309,89 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 	if fi, ok := fileImports[res.PackagePath]; ok {
 		imports = fi.Imports
 	}
-	currentAlias := res.StructName
+
+	// Построить маппинг алиас таблицы -> модель
+	aliasToModel := make(map[string]*go_ast.ModelMeta)
+	currentModel, err := getModelByFullName(res.StructName, models)
+	if err != nil {
+		return nil, err
+	}
+	currentAlias := currentModel.StructName
+	aliasToModel[currentAlias] = currentModel
+
+	// Зарегистрировать все модели из JOIN
 	for _, step := range res.Steps {
-		if step.Type == go_ast.StepWhere {
-			Node, err := constructPredNode(step.PredicateRef, step.PredicateArgs, currentAlias, models, imports)
+		if step.Type == go_ast.StepJoin {
+			join := step.JoinRef
+			leftModel, err := getModelByFullName(join.LeftModelType, models)
 			if err != nil {
 				return nil, err
 			}
-			whereNode = append(whereNode, Node)
-		} else {
-			rightModel := step.JoinRef.RightModelType
-			rightModelMeta, ok := models[rightModel]
-			if !ok {
-				return nil, fmt.Errorf("model %s not found", rightModel)
+			rightModel, err := getModelByFullName(join.RightModelType, models)
+			if err != nil {
+				return nil, err
 			}
-			rightAlias := rightModelMeta.StructName
-			Node, err := constructJoinNode(step.JoinRef, currentAlias, rightAlias, models, imports)
+			leftAlias := leftModel.StructName
+			rightAlias := rightModel.StructName
+			if _, ok := aliasToModel[leftAlias]; !ok {
+				aliasToModel[leftAlias] = leftModel
+			}
+			if _, ok := aliasToModel[rightAlias]; !ok {
+				aliasToModel[rightAlias] = rightModel
+			}
+		}
+	}
+
+	// Построить узлы JOIN (с условиями ON) и одновременно обновлять текущий алиас для WHERE
+	currentAliasForJoins := currentModel.StructName
+	for _, step := range res.Steps {
+		if step.Type == go_ast.StepJoin {
+			join := step.JoinRef
+			rightModel, err := getModelByFullName(join.RightModelType, models)
+			if err != nil {
+				return nil, err
+			}
+			rightAlias := rightModel.StructName
+			node, err := constructJoinNode(join, currentAliasForJoins, rightAlias, models, imports)
 			if err != nil {
 				return nil, err
 			}
 			joinNodes = append(joinNodes, JoinNode{
-				Type: step.JoinRef.JoinType,
+				Type: join.JoinType,
 				Left: nil,
 				Right: Relation{
-					Name:  rightModelMeta.TableName,
+					Name:  rightModel.TableName,
 					Alias: rightAlias,
 				},
-				On: Node,
+				On: node,
 			})
-			currentAlias = rightAlias
+			currentAliasForJoins = rightAlias
+		}
+	}
+
+	// Построить узел WHERE, обновляя текущий алиас при проходе по шагам
+	curAlias := currentModel.StructName
+	for _, step := range res.Steps {
+		if step.Type == go_ast.StepWhere {
+			node, err := constructPredNode(step.PredicateRef, step.PredicateArgs, curAlias, models, imports)
+			if err != nil {
+				return nil, err
+			}
+			whereNode = append(whereNode, node)
+		} else if step.Type == go_ast.StepJoin {
+			join := step.JoinRef
+			rightModel, err := getModelByFullName(join.RightModelType, models)
+			if err != nil {
+				return nil, err
+			}
+			curAlias = rightModel.StructName
 		}
 	}
 	predNode := &ConditionNode{
 		Type:     And,
 		Children: whereNode,
 	}
+
 	var queryMethod QueryMethod
 	switch res.Method {
 	case "ToList":
@@ -337,49 +401,70 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 	default:
 		queryMethod = ToList
 	}
+
+	// Построить SelectFields на основе res.SelectCols (теперь []SelectFieldSpec)
 	var selectFields []SelectField
 	if len(res.SelectCols) != 0 {
-		for _, sel := range res.SelectCols {
-			found := false
-			for _, f := range models[res.StructName].Fields {
-				if sel == f.FieldName {
-					selectFields = append(selectFields, SelectField{
-						TableAlias: res.StructName,
-						ColumnName: f.MappingSQL,
-						GoType:     f.FieldType,
-					})
-					found = true
+		for _, selSpec := range res.SelectCols {
+			alias := selSpec.TableAlias
+			colName := selSpec.ColumnName
+			if alias == "" {
+				alias = curAlias // текущий алиас после всех шагов
+			}
+			model, ok := aliasToModel[alias]
+			if !ok {
+				return nil, fmt.Errorf("unknown table alias %q in SELECT", alias)
+			}
+			var fieldMeta *go_ast.StructField
+			for i, f := range model.Fields {
+				if f.FieldName == colName {
+					fieldMeta = &model.Fields[i]
 					break
 				}
 			}
-			if !found {
-				return nil, fmt.Errorf("select column %s not found in model %s", sel, res.StructName)
+			if fieldMeta == nil {
+				return nil, fmt.Errorf("column %q not found in model %s", colName, model.StructName)
 			}
+			selectFields = append(selectFields, SelectField{
+				TableAlias: alias,
+				ColumnName: fieldMeta.MappingSQL,
+				GoType:     fieldMeta.FieldType,
+			})
 		}
 	} else {
-		for _, f := range models[res.StructName].Fields {
+		// Если SelectCols не указаны, выбираем все поля из текущей модели
+		model, ok := aliasToModel[curAlias]
+		if !ok {
+			return nil, fmt.Errorf("current model alias %s not found in alias map", curAlias)
+		}
+		for _, f := range model.Fields {
 			selectFields = append(selectFields, SelectField{
-				TableAlias: res.StructName,
+				TableAlias: curAlias,
 				ColumnName: f.MappingSQL,
 				GoType:     f.FieldType,
 			})
 		}
 	}
 
+	// OrderBy
 	var orderByClause *OrderByClause
 	if res.OrderBy != nil {
+		model, ok := aliasToModel[curAlias]
+		if !ok {
+			return nil, fmt.Errorf("cannot determine model for OrderBy: alias %s not found", curAlias)
+		}
 		var mapping string
-		for _, field := range models[res.StructName].Fields {
+		for _, field := range model.Fields {
 			if field.FieldName == res.OrderBy.Field {
 				mapping = field.MappingSQL
 				break
 			}
 		}
 		if mapping == "" {
-			return nil, fmt.Errorf("order by field %s not found in model %s", res.OrderBy.Field, res.StructName)
+			return nil, fmt.Errorf("order by field %s not found in model %s", res.OrderBy.Field, model.StructName)
 		}
 		orderByClause = &OrderByClause{
-			TableAlias: res.StructName,
+			TableAlias: curAlias,
 			Field:      res.OrderBy.Field,
 			MappingSQL: mapping,
 			Desc:       res.OrderBy.Desc,
@@ -389,8 +474,8 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 	query := &SelectQueryAST{
 		SelectFields: selectFields,
 		From: Relation{
-			Name:  models[res.StructName].TableName,
-			Alias: res.StructName,
+			Name:  currentModel.TableName,
+			Alias: currentModel.StructName,
 		},
 		Joins:   joinNodes,
 		Where:   predNode,

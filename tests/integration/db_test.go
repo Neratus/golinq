@@ -12,11 +12,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Вспомогательные типы для ручного сравнения
+type CountrySimple struct {
+	Name       string
+	Population int64
+	Area       float64
+}
+
+type CountryLanguageManual struct {
+	CountryID    string
+	CountryName  string
+	LanguageName string
+	LanguageCode string
+}
+
 func TestIntegration_GolinqVsPGX(t *testing.T) {
 	// Читаем DSN из переменной окружения или используем значение по умолчанию
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgres://test:test@localhost:5432/testdb?sslmode=disable"
+		dsn = "postgres://test:test@localhost:5433/testdb?sslmode=disable"
 	}
 
 	// Открываем соединение через стандартный database/sql (драйвер pgx)
@@ -72,40 +86,36 @@ func TestIntegration_GolinqVsPGX(t *testing.T) {
 	// Тест 2: SELECT с JOIN (многие-ко-многим: Country ↔ Language)
 	// ========================================================================
 	t.Run("SelectCountriesWithLanguages", func(t *testing.T) {
-		// Ожидаемый результат: для каждой страны – перечень языков (может быть несколько строк)
-		// Используем сгенерированную функцию для запроса с JOIN
-		golinqRows, err := Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJoin_Selects(ctx, gdb)
+		golinqRows, err := Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJoin_Select(ctx, gdb)
 		require.NoError(t, err)
 
-		// Ручной SQL через pgx
 		pgxRows, err := queryManualCountryLanguages(db, ctx)
 		require.NoError(t, err)
 
 		assert.Equal(t, len(pgxRows), len(golinqRows))
 		for i := range golinqRows {
-			assert.Equal(t, pgxRows[i].CountryID, golinqRows[i].CountryID)
+			// Используем правильные имена полей из сгенерированной структуры
+			assert.Equal(t, pgxRows[i].CountryID, golinqRows[i].CountryId)
 			assert.Equal(t, pgxRows[i].CountryName, golinqRows[i].CountryName)
 			assert.Equal(t, pgxRows[i].LanguageName, golinqRows[i].LanguageName)
 			assert.Equal(t, pgxRows[i].LanguageCode, golinqRows[i].LanguageCode)
 		}
 	})
 }
-
-// Вспомогательные функции для ручного выполнения запросов (для сравнения)
-func queryManualCountries(db *sql.DB, ctx context.Context) ([]integration.CountryResult, error) {
+func queryManualCountries(db *sql.DB, ctx context.Context) ([]CountrySimple, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT name, population, area
-		FROM country
-		WHERE population > $1
-		ORDER BY population DESC
-	`, 100000000)
+        SELECT name, population, area
+        FROM country
+        WHERE population > $1
+        ORDER BY population DESC
+    `, 100000000)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var results []integration.CountryResult
+	var results []CountrySimple
 	for rows.Next() {
-		var cr integration.CountryResult
+		var cr CountrySimple
 		if err := rows.Scan(&cr.Name, &cr.Population, &cr.Area); err != nil {
 			return nil, err
 		}
@@ -114,21 +124,21 @@ func queryManualCountries(db *sql.DB, ctx context.Context) ([]integration.Countr
 	return results, rows.Err()
 }
 
-func queryManualCountryLanguages(db *sql.DB, ctx context.Context) ([]integration.CountryLanguageResult, error) {
+func queryManualCountryLanguages(db *sql.DB, ctx context.Context) ([]CountryLanguageManual, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT c.id, c.name, l.name, l.code
-		FROM country c
-		JOIN country_language cl ON c.id = cl.country_id
-		JOIN language l ON cl.language_id = l.id
-		ORDER BY c.name, l.name
-	`)
+        SELECT c.id, c.name, l.name, l.code
+        FROM country c
+        JOIN country_language cl ON c.id = cl.country_id
+        JOIN language l ON cl.language_id = l.id
+        ORDER BY c.name, l.name
+    `)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var results []integration.CountryLanguageResult
+	var results []CountryLanguageManual
 	for rows.Next() {
-		var r integration.CountryLanguageResult
+		var r CountryLanguageManual
 		if err := rows.Scan(&r.CountryID, &r.CountryName, &r.LanguageName, &r.LanguageCode); err != nil {
 			return nil, err
 		}

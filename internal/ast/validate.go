@@ -6,6 +6,7 @@ import (
 )
 
 func (queries *ProjectQueries) Validate() error {
+	// Валидация предикатов
 	for _, predicate := range queries.Predicates {
 		if predicate.LinkedFuncName != nil && *predicate.LinkedFuncName != "" && len(predicate.Args) == 0 {
 			key := predicate.PackageName + "." + *predicate.LinkedFuncName
@@ -45,8 +46,9 @@ func (queries *ProjectQueries) Validate() error {
 		} else {
 			return &ValidationError{Message: "Predicate " + predicate.PredicateName + " has neither a function body nor a linked function, one is required"}
 		}
-
 	}
+
+	// Валидация JOIN
 	for _, join := range queries.Joins {
 		if _, ok := queries.Models[join.LeftModelType]; !ok {
 			return &ValidationError{Message: "Join " + join.JoinName + " has left argument of type " + join.LeftModelType + " which does not match any model"}
@@ -87,27 +89,84 @@ func (queries *ProjectQueries) Validate() error {
 			return &ValidationError{Message: "Join " + join.JoinName + " has neither an ON function nor a linked function , one of these is required"}
 		}
 	}
+
+	// Валидация запросов
 	for _, call := range queries.QueryCalls {
 		fullModelName := call.StructName
 		model, ok := queries.Models[fullModelName]
 		if !ok {
 			return &ValidationError{Message: "Query call on struct " + call.StructName + " but struct type is not defined in any model"}
 		}
-		for _, selectCall := range call.SelectCols {
+
+		// 1. Построить маппинг алиас таблицы -> мета-модель
+		aliasToModel := make(map[string]*ModelMeta)
+		currentAlias := extractShortName(call.StructName)
+		aliasToModel[currentAlias] = model
+
+		// 2. Пройти по шагам (JOIN), чтобы зарегистрировать все алиасы и обновить currentAlias
+		for _, step := range call.Steps {
+			if step.Type == StepJoin {
+				join, ok := queries.Joins[step.Join] // используем имя, а не JoinRef
+				if !ok {
+					return &ValidationError{Message: fmt.Sprintf("join %s not defined", step.Join)}
+				}
+				leftShort := extractShortName(join.LeftModelType)
+				rightShort := extractShortName(join.RightModelType)
+
+				// Добавляем правую модель, если её ещё нет
+				if _, exists := aliasToModel[rightShort]; !exists {
+					rightModel, ok := queries.Models[join.RightModelType]
+					if !ok {
+						return &ValidationError{Message: fmt.Sprintf("Join %s refers to unknown right model %s", join.JoinName, join.RightModelType)}
+					}
+					aliasToModel[rightShort] = rightModel
+				}
+				// Левая модель уже должна быть (иначе JOIN не прошёл бы предыдущую валидацию)
+				if _, exists := aliasToModel[leftShort]; !exists {
+					leftModel, ok := queries.Models[join.LeftModelType]
+					if !ok {
+						return &ValidationError{Message: fmt.Sprintf("Join %s refers to unknown left model %s", join.JoinName, join.LeftModelType)}
+					}
+					aliasToModel[leftShort] = leftModel
+				}
+
+				// Обновляем текущий алиас после JOIN (как в оригинальной логике)
+				if currentAlias == leftShort {
+					currentAlias = rightShort
+				} else if currentAlias == rightShort {
+					currentAlias = leftShort
+				} else {
+					return &ValidationError{Message: fmt.Sprintf("join %s does not involve current model %s", join.JoinName, currentAlias)}
+				}
+			}
+		}
+
+		// 3. Проверить поля SELECT
+		for _, sel := range call.SelectCols {
+			alias := sel.TableAlias
+			colName := sel.ColumnName
+			if alias == "" {
+				alias = currentAlias
+			}
+			targetModel, ok := aliasToModel[alias]
+			if !ok {
+				return &ValidationError{Message: fmt.Sprintf("Query call on struct %s: unknown table alias %q in SELECT", call.StructName, alias)}
+			}
 			found := false
-			for _, field := range model.Fields {
-				if field.FieldName == selectCall {
+			for _, f := range targetModel.Fields {
+				if f.FieldName == colName {
 					found = true
 					break
 				}
 			}
 			if !found {
-				return &ValidationError{Message: "Query call on struct " + call.StructName + " has select column " + selectCall + " which does not match any field mapping in the model"}
+				return &ValidationError{Message: fmt.Sprintf("Query call on struct %s: column %q not found in model %s", call.StructName, colName, targetModel.StructName)}
 			}
 		}
-		currentModel := call.StructName
-		for i, step := range call.Steps {
 
+		// 4. Проверить цепочку WHERE/JOIN (оставляем оригинальную логику)
+		currentModelForSteps := call.StructName
+		for i, step := range call.Steps {
 			switch step.Type {
 			case StepWhere:
 				pred, ok := queries.Predicates[step.Predicate]
@@ -119,27 +178,25 @@ func (queries *ProjectQueries) Validate() error {
 				if len(step.PredicateArgs) != expectedCount {
 					return fmt.Errorf("predicate %s expects %d argument(s), got %d", pred.PredicateName, expectedCount, len(step.PredicateArgs))
 				}
-
-				for i, argExpr := range step.PredicateArgs {
-					expectedType := pred.Args[i+1].TypeName
-
+				for j, argExpr := range step.PredicateArgs {
+					expectedType := pred.Args[j+1].TypeName
 					switch expr := argExpr.(type) {
 					case *ast.BasicLit:
 						if !isBasicLitCompatible(expr, expectedType) {
 							return fmt.Errorf("argument %d of predicate %s: expected %s, but got literal %s",
-								i+1, pred.PredicateName, expectedType, expr.Value)
+								j+1, pred.PredicateName, expectedType, expr.Value)
 						}
 					case *ast.Ident:
 					default:
 						return fmt.Errorf("argument %d of predicate %s must be literal or variable, got %T",
-							i+1, pred.PredicateName, expr)
+							j+1, pred.PredicateName, expr)
 					}
 				}
 				predModelShort := trimPackage(pred.ModelType)
-				currentShort := trimPackage(currentModel)
+				currentShort := trimPackage(currentModelForSteps)
 				if predModelShort != currentShort {
 					return &ValidationError{Message: fmt.Sprintf("predicate %s expects model %s, but current model is %s",
-						pred.PredicateName, pred.ModelType, currentModel)}
+						pred.PredicateName, pred.ModelType, currentModelForSteps)}
 				}
 			case StepJoin:
 				join, ok := queries.Joins[step.Join]
@@ -147,20 +204,20 @@ func (queries *ProjectQueries) Validate() error {
 					return &ValidationError{Message: "Query call on struct " + call.StructName + " uses join " + step.Join + " which is not defined"}
 				}
 				call.Steps[i].JoinRef = join
-
 				leftShort := trimPackage(join.LeftModelType)
 				rightShort := trimPackage(join.RightModelType)
-				currentShort := trimPackage(currentModel)
-
+				currentShort := trimPackage(currentModelForSteps)
 				if leftShort == currentShort {
-					currentModel = rightShort
+					currentModelForSteps = rightShort
 				} else if rightShort == currentShort {
-					currentModel = leftShort
+					currentModelForSteps = leftShort
 				} else {
-					return &ValidationError{Message: fmt.Sprintf("join %s does not involve current model %s", join.JoinName, currentModel)}
+					return &ValidationError{Message: fmt.Sprintf("join %s does not involve current model %s", join.JoinName, currentModelForSteps)}
 				}
 			}
 		}
+
+		// 5. Проверить OrderBy
 		if call.OrderBy != nil {
 			found := false
 			for _, f := range model.Fields {
@@ -174,6 +231,8 @@ func (queries *ProjectQueries) Validate() error {
 			}
 		}
 	}
+
+	// Удалить неиспользованные функции
 	toDelete := []string{}
 	for key, fun := range queries.FuncDecls {
 		if !fun.IsUsed {
