@@ -1,14 +1,13 @@
-package sqlgen
+package golinq
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/Neratus/golinq/internal/condition"
 	"github.com/Neratus/golinq/internal/dialect"
 )
 
-func buildLogical(node *condition.ConditionNode, operator string, d *dialect.SQLDialect, params *[]interface{}, paramValues []interface{}, ph *int) (string, error) {
+func buildLogical(node *ConditionNode, operator string, d *dialect.SQLDialect, params *[]interface{}, paramValues []interface{}, ph *int) (string, error) {
 	if len(node.Children) == 0 {
 		return "", nil
 	}
@@ -30,23 +29,23 @@ func placeholder(d *dialect.SQLDialect, ph int) string {
 	return fmt.Sprintf(d.PlaceholderTemplate, ph)
 }
 
-func buildCond(node *condition.ConditionNode, d *dialect.SQLDialect, params *[]any, paramValues []any, ph *int) (string, error) {
+func buildCond(node *ConditionNode, d *dialect.SQLDialect, params *[]any, paramValues []any, ph *int) (string, error) {
 	if node == nil {
 		return "", nil
 	}
 
 	switch node.Type {
-	case condition.Field:
+	case Field:
 		val, ok := node.Value.(string)
 		if !ok {
 			return "", fmt.Errorf("Field node value is not string: %T", node.Value)
 		}
 		return val, nil
 
-	case condition.Const:
+	case Const:
 		return literalToSQL(node.Value, d)
 
-	case condition.Param:
+	case Param:
 		idx := node.ParamIndex - 1
 		if idx < 0 || idx >= len(paramValues) {
 			return "", fmt.Errorf("param index %d out of range (len=%d)", node.ParamIndex, len(paramValues))
@@ -56,7 +55,7 @@ func buildCond(node *condition.ConditionNode, d *dialect.SQLDialect, params *[]a
 		*ph++
 		return p, nil
 
-	case condition.Cmp:
+	case Cmp:
 		if len(node.Children) != 2 {
 			return "", fmt.Errorf("Cmp node must have 2 children, got %d", len(node.Children))
 		}
@@ -75,19 +74,19 @@ func buildCond(node *condition.ConditionNode, d *dialect.SQLDialect, params *[]a
 		op := getOperator(d, opStr)
 		return fmt.Sprintf("(%s %s %s)", left, op, right), nil
 
-	case condition.And:
+	case And:
 		if d.AND == "" {
 			return "", fmt.Errorf("dialect AND operator is empty")
 		}
 		return buildLogical(node, d.AND, d, params, paramValues, ph)
 
-	case condition.Or:
+	case Or:
 		if d.OR == "" {
 			return "", fmt.Errorf("dialect OR operator is empty")
 		}
 		return buildLogical(node, d.OR, d, params, paramValues, ph)
 
-	case condition.Not:
+	case Not:
 		if len(node.Children) != 1 {
 			return "", fmt.Errorf("Not node must have 1 child, got %d", len(node.Children))
 		}
@@ -100,7 +99,7 @@ func buildCond(node *condition.ConditionNode, d *dialect.SQLDialect, params *[]a
 		}
 		return fmt.Sprintf("(%s %s)", d.NOT, child), nil
 
-	case condition.Like:
+	case Like:
 		if len(node.Children) != 2 {
 			return "", fmt.Errorf("Like node must have 2 children, got %d", len(node.Children))
 		}
@@ -127,7 +126,7 @@ func buildCond(node *condition.ConditionNode, d *dialect.SQLDialect, params *[]a
 		}
 		return fmt.Sprintf("%s %s %s", left, d.LikeOp, rightExpr), nil
 
-	case condition.Func:
+	case Func:
 		return "", fmt.Errorf("Func node is not supported in SQL generation (should have been replaced by Const)")
 
 	default:
@@ -135,7 +134,7 @@ func buildCond(node *condition.ConditionNode, d *dialect.SQLDialect, params *[]a
 	}
 }
 
-func Generate(ast *condition.SelectQueryAST, dialect *dialect.SQLDialect, paramValues []interface{}) (string, []interface{}, error) {
+func Generate(ast *SelectQueryAST, dialect *dialect.SQLDialect, paramValues []interface{}) (string, []interface{}, error) {
 	if ast == nil {
 		return "", nil, fmt.Errorf("ast is nil")
 	}
@@ -239,6 +238,5 @@ func Generate(ast *condition.SelectQueryAST, dialect *dialect.SQLDialect, paramV
 		query.WriteString(dialect.QueryEnd)
 	}
 
-	fmt.Println("Res Query: ", query.String())
 	return query.String(), params, nil
 }

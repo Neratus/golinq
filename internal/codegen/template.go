@@ -10,8 +10,6 @@ package {{.Package}}
 import (
     "context"
     "github.com/Neratus/golinq"
-    "github.com/Neratus/golinq/internal/condition"
-    "github.com/Neratus/golinq/internal/sqlgen"
     {{- range $alias, $path := .ModelImports}}
     {{$alias}} "{{$path}}"
     {{- end}}
@@ -29,16 +27,16 @@ import (
 var queryFuncTemplate = template.Must(fileTemplate.New("queryFunc").Parse(`
 // {{.Name}} executes a pre-generated query.
 func {{.Name}}(ctx context.Context, db *golinq.DB{{range .Params}}, {{.Name}} {{.Type}}{{end}}) ({{.ResultType}}, error) {
-	ast := {{.ASTLiteral}}
-	paramValues := []interface{}{ {{range $i, $p := .Params}}{{if $i}}, {{end}}{{$p.Name}}{{end}} }
-	sqlStr, params, err := sqlgen.Generate(ast, db.Dialect(), paramValues)
-	if err != nil {
-		return nil, err
-	}
-	{{if eq .Method "ToList"}}
-	return golinq.QueryRows[{{.ModelType}}](ctx, sqlStr, params...)
-	{{else}}
-	return golinq.QueryRow[{{.ModelType}}](ctx, sqlStr, params...)
-	{{end}}
+    ast := {{.ASTLiteral}}
+    paramValues := []interface{}{ {{range $i, $p := .Params}}{{if $i}}, {{end}}{{$p.Name}}{{end}} }
+    sqlStr, params, err := golinq.Generate(ast, db.Dialect(), paramValues)
+    if err != nil {
+        return nil, err
+    }
+    {{if eq .Method "ToList"}}
+    return golinq.QueryRows[{{.ModelType}}](ctx, db, sqlStr, params...)
+    {{else}}
+    return golinq.QueryRow[{{.ModelType}}](ctx, db, sqlStr, params...)
+    {{end}}
 }
 `))

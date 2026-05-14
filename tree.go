@@ -1,4 +1,4 @@
-package condition
+package golinq
 
 type NodeType int
 

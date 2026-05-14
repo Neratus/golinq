@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"maps"
 	"path/filepath"
 	"reflect"
@@ -70,8 +71,7 @@ func parseQueryCall(call *ast.CallExpr, fset *token.FileSet, query *QuerySpec) e
 			Predicate:     predName,
 			PredicateArgs: args,
 		}
-
-		query.Steps = append(query.Steps, pred)
+		query.Steps = append([]QueryStep{pred}, query.Steps...)
 		nextCall, ok := sel.X.(*ast.CallExpr)
 		if !ok {
 			return fmt.Errorf("expected call before %s, got %T", func_name, sel.X)
@@ -169,7 +169,7 @@ func parseQueryCall(call *ast.CallExpr, fset *token.FileSet, query *QuerySpec) e
 			JoinRef: nil,
 		}
 
-		query.Steps = append(query.Steps, join)
+		query.Steps = append([]QueryStep{join}, query.Steps...)
 		nextCall, ok := sel.X.(*ast.CallExpr)
 		if !ok {
 			return fmt.Errorf("expected call before %s, got %T", func_name, sel.X)
@@ -327,7 +327,7 @@ func ParseFiles(f string, res *ProjectQueries) error {
 				models[fullKey] = &modelMeta
 			}
 		case *ast.FuncDecl:
-			if len(x.Type.Results.List) != 1 || exprToString(fset, x.Type.Results.List[0].Type) != "bool" {
+			if x.Type.Results == nil || len(x.Type.Results.List) != 1 || exprToString(fset, x.Type.Results.List[0].Type) != "bool" {
 				return true
 			}
 			fullFuncKey := file.Name.Name + "." + x.Name.Name
@@ -339,6 +339,9 @@ func ParseFiles(f string, res *ProjectQueries) error {
 				IsUsed:      false,
 			}
 		case *ast.ValueSpec:
+			if len(x.Names) == 0 || len(x.Values) == 0 {
+				return true
+			}
 			if len(x.Names) != 1 || len(x.Values) != 1 {
 				return true
 			}
@@ -346,11 +349,12 @@ func ParseFiles(f string, res *ProjectQueries) error {
 			for _, expr := range x.Values {
 				call, ok := expr.(*ast.CallExpr)
 				if !ok {
-					return true
+					// Не вызов функции – просто игнорируем
+					continue
 				}
 				var qc QuerySpec
 				err := parseQueryCall(call, fset, &qc)
-				if err == nil {
+				if err == nil && qc.StructName != "" {
 					qc.PackageName = file.Name.Name
 					qc.PackagePath = f
 					key := fmt.Sprintf("%d&%s@%d", key_num, file.Name.Name, len(queryCalls))
@@ -366,24 +370,24 @@ func ParseFiles(f string, res *ProjectQueries) error {
 				case *ast.IndexExpr:
 					sel, ok := fun.X.(*ast.SelectorExpr)
 					if !ok {
-						return true
+						continue
 					}
 					pkgIdent, ok = sel.X.(*ast.Ident)
-					if !ok {
-						return true
+					if !ok || pkgIdent == nil {
+						continue
 					}
 					funcName = sel.Sel.Name
 					genericType = exprToString(fset, fun.Index)
 
 				case *ast.SelectorExpr:
 					pkgIdent, ok = fun.X.(*ast.Ident)
-					if !ok {
-						return true
+					if !ok || pkgIdent == nil {
+						continue
 					}
 					funcName = fun.Sel.Name
 
 				default:
-					return true
+					continue
 				}
 				if pkgIdent.Name != alias {
 					continue
@@ -564,4 +568,35 @@ func ParseFiles(f string, res *ProjectQueries) error {
 	maps.Copy(res.QueryCalls, queryCalls)
 	maps.Copy(res.FuncDecls, funcMeta)
 	return nil
+}
+
+func ParseDir(root string) (*ProjectQueries, error) {
+	res := &ProjectQueries{
+		Models:      make(map[string]*ModelMeta),
+		Predicates:  make(map[string]*PredicateMeta),
+		Joins:       make(map[string]*JoinMeta),
+		QueryCalls:  make(map[string]*QuerySpec),
+		FileImports: make(map[string]*FileImports),
+		FuncDecls:   make(map[string]*FuncDeclMeta),
+	}
+	err := filepath.Walk(root, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == "vendor" || name == ".git" || name == "testdata" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		if err := ParseFiles(path, res); err != nil {
+			return fmt.Errorf("error processing file %q: %w", path, err)
+		}
+		return nil
+	})
+	return res, err
 }

@@ -6,8 +6,6 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
-	"io/fs"
-	"path/filepath"
 	"strings"
 )
 
@@ -92,33 +90,7 @@ func isBasicLitCompatible(lit *ast.BasicLit, expectedType string) bool {
 	}
 }
 
-func ParseDir(root string) (*ProjectQueries, error) {
-	res := &ProjectQueries{
-		Models:      make(map[string]*ModelMeta),
-		Predicates:  make(map[string]*PredicateMeta),
-		Joins:       make(map[string]*JoinMeta),
-		QueryCalls:  make(map[string]*QuerySpec),
-		FileImports: make(map[string]*FileImports),
-		FuncDecls:   make(map[string]*FuncDeclMeta),
-	}
-	err := filepath.Walk(root, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			name := info.Name()
-			if name == "vendor" || name == ".git" || name == "testdata" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-		if err := ParseFiles(path, res); err != nil {
-			return fmt.Errorf("error processing file %q: %w", path, err)
-		}
-		return nil
-	})
-	return res, err
+func trimPackage(typeName string) string {
+	parts := strings.Split(typeName, ".")
+	return parts[len(parts)-1]
 }

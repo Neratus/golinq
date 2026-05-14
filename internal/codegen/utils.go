@@ -5,13 +5,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Neratus/golinq"
 	"github.com/Neratus/golinq/internal/ast"
-	"github.com/Neratus/golinq/internal/condition"
 )
 
-func needValueField(node *condition.ConditionNode) bool {
+func needValueField(node *golinq.ConditionNode) bool {
 	switch node.Type {
-	case condition.Cmp, condition.Field, condition.Const, condition.Like:
+	case golinq.Cmp, golinq.Field, golinq.Const, golinq.Like:
 		return true
 	default:
 		return false
@@ -31,23 +31,23 @@ func renderLiteral(v interface{}) (string, error) {
 	}
 }
 
-func nodeTypeString(t condition.NodeType) string {
+func nodeTypeString(t golinq.NodeType) string {
 	switch t {
-	case condition.And:
+	case golinq.And:
 		return "And"
-	case condition.Or:
+	case golinq.Or:
 		return "Or"
-	case condition.Not:
+	case golinq.Not:
 		return "Not"
-	case condition.Cmp:
+	case golinq.Cmp:
 		return "Cmp"
-	case condition.Field:
+	case golinq.Field:
 		return "Field"
-	case condition.Const:
+	case golinq.Const:
 		return "Const"
-	case condition.Param:
+	case golinq.Param:
 		return "Param"
-	case condition.Like:
+	case golinq.Like:
 		return "Like"
 	default:
 		return "Unknown"

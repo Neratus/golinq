@@ -10,6 +10,55 @@ import (
 	models "hi/models"
 )
 
+// Query_Getmodels_User_Adult_Select executes a pre-generated query.
+func Query_Getmodels_User_Adult_Select(ctx context.Context, db *golinq.DB) ([]models.User, error) {
+	ast := &condition.SelectQueryAST{
+		SelectFields: []condition.SelectField{
+			{TableAlias: "models.User", ColumnName: "user_id"},
+			{TableAlias: "models.User", ColumnName: "full_name"},
+			{TableAlias: "models.User", ColumnName: "age"},
+		},
+		From:  condition.Relation{Name: "user", Alias: "models.User"},
+		Joins: []condition.JoinNode{},
+		Where: &condition.ConditionNode{
+			Type: condition.And,
+			Children: []*condition.ConditionNode{
+				&condition.ConditionNode{
+					Type:  condition.Cmp,
+					Value: "GE",
+					Children: []*condition.ConditionNode{
+						&condition.ConditionNode{
+							Type:  condition.Field,
+							Value: "models.User.",
+						},
+						&condition.ConditionNode{
+							Type:  condition.Const,
+							Value: 18,
+						},
+					},
+				},
+			},
+		},
+		OrderBy: &condition.OrderByClause{
+			TableAlias: "models.User",
+			Field:      "Age",
+			MappingSQL: "age",
+			Desc:       false,
+		},
+		Limit:  10,
+		Offset: 5,
+		Method: condition.ToList,
+	}
+	paramValues := []interface{}{}
+	sqlStr, params, err := sqlgen.Generate(ast, db.Dialect(), paramValues)
+	if err != nil {
+		return nil, err
+	}
+
+	return golinq.QueryRows[models.User](ctx, sqlStr, params...)
+
+}
+
 // Query_Getmodels_User_UserOrderJoin_ActiveUser_Select executes a pre-generated query.
 func Query_Getmodels_User_UserOrderJoin_ActiveUser_Select(ctx context.Context, db *golinq.DB) ([]models.User, error) {
 	ast := &condition.SelectQueryAST{
@@ -62,55 +111,6 @@ func Query_Getmodels_User_UserOrderJoin_ActiveUser_Select(ctx context.Context, d
 		Limit:   0,
 		Offset:  0,
 		Method:  condition.ToList,
-	}
-	paramValues := []interface{}{}
-	sqlStr, params, err := sqlgen.Generate(ast, db.Dialect(), paramValues)
-	if err != nil {
-		return nil, err
-	}
-
-	return golinq.QueryRows[models.User](ctx, sqlStr, params...)
-
-}
-
-// Query_Getmodels_User_Adult_Select executes a pre-generated query.
-func Query_Getmodels_User_Adult_Select(ctx context.Context, db *golinq.DB) ([]models.User, error) {
-	ast := &condition.SelectQueryAST{
-		SelectFields: []condition.SelectField{
-			{TableAlias: "models.User", ColumnName: "user_id"},
-			{TableAlias: "models.User", ColumnName: "full_name"},
-			{TableAlias: "models.User", ColumnName: "age"},
-		},
-		From:  condition.Relation{Name: "user", Alias: "models.User"},
-		Joins: []condition.JoinNode{},
-		Where: &condition.ConditionNode{
-			Type: condition.And,
-			Children: []*condition.ConditionNode{
-				&condition.ConditionNode{
-					Type:  condition.Cmp,
-					Value: "GE",
-					Children: []*condition.ConditionNode{
-						&condition.ConditionNode{
-							Type:  condition.Field,
-							Value: "models.User.",
-						},
-						&condition.ConditionNode{
-							Type:  condition.Const,
-							Value: 18,
-						},
-					},
-				},
-			},
-		},
-		OrderBy: &condition.OrderByClause{
-			TableAlias: "models.User",
-			Field:      "Age",
-			MappingSQL: "age",
-			Desc:       false,
-		},
-		Limit:  10,
-		Offset: 5,
-		Method: condition.ToList,
 	}
 	paramValues := []interface{}{}
 	sqlStr, params, err := sqlgen.Generate(ast, db.Dialect(), paramValues)

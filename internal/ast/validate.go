@@ -88,7 +88,8 @@ func (queries *ProjectQueries) Validate() error {
 		}
 	}
 	for _, call := range queries.QueryCalls {
-		model, ok := queries.Models[call.StructName]
+		fullModelName := call.StructName
+		model, ok := queries.Models[fullModelName]
 		if !ok {
 			return &ValidationError{Message: "Query call on struct " + call.StructName + " but struct type is not defined in any model"}
 		}
@@ -106,6 +107,7 @@ func (queries *ProjectQueries) Validate() error {
 		}
 		currentModel := call.StructName
 		for i, step := range call.Steps {
+
 			switch step.Type {
 			case StepWhere:
 				pred, ok := queries.Predicates[step.Predicate]
@@ -133,10 +135,11 @@ func (queries *ProjectQueries) Validate() error {
 							i+1, pred.PredicateName, expr)
 					}
 				}
-				predModel := pred.ModelType
-				if predModel != currentModel && predModel != model.PackageName+"."+model.StructName {
+				predModelShort := trimPackage(pred.ModelType)
+				currentShort := trimPackage(currentModel)
+				if predModelShort != currentShort {
 					return &ValidationError{Message: fmt.Sprintf("predicate %s expects model %s, but current model is %s",
-						pred.PredicateName, predModel, currentModel)}
+						pred.PredicateName, pred.ModelType, currentModel)}
 				}
 			case StepJoin:
 				join, ok := queries.Joins[step.Join]
@@ -144,14 +147,15 @@ func (queries *ProjectQueries) Validate() error {
 					return &ValidationError{Message: "Query call on struct " + call.StructName + " uses join " + step.Join + " which is not defined"}
 				}
 				call.Steps[i].JoinRef = join
-				left := join.LeftModelType
-				right := join.RightModelType
-				fullCurrent := model.PackageName + "." + currentModel
 
-				if left == currentModel || left == fullCurrent {
-					currentModel = right
-				} else if right == currentModel || right == fullCurrent {
-					currentModel = left
+				leftShort := trimPackage(join.LeftModelType)
+				rightShort := trimPackage(join.RightModelType)
+				currentShort := trimPackage(currentModel)
+
+				if leftShort == currentShort {
+					currentModel = rightShort
+				} else if rightShort == currentShort {
+					currentModel = leftShort
 				} else {
 					return &ValidationError{Message: fmt.Sprintf("join %s does not involve current model %s", join.JoinName, currentModel)}
 				}

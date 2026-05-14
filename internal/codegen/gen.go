@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Neratus/golinq"
 	myast "github.com/Neratus/golinq/internal/ast"
-	"github.com/Neratus/golinq/internal/condition"
 )
 
 type queryData struct {
@@ -32,8 +32,11 @@ type param struct {
 	Type string
 }
 
-func generateResultStruct(ast *condition.SelectQueryAST, modelFields []myast.StructField) (structName, structDef string) {
-	if len(ast.Joins) == 0 && len(ast.SelectFields) == len(modelFields) {
+func generateResultStruct(ast *golinq.SelectQueryAST, modelFields []myast.StructField) (structName, structDef string) {
+	if len(ast.Joins) == 0 {
+		return "", ""
+	}
+	if len(ast.SelectFields) == len(modelFields) {
 		return "", ""
 	}
 	mainAlias := ast.From.Alias
@@ -78,15 +81,15 @@ func generateResultStruct(ast *condition.SelectQueryAST, modelFields []myast.Str
 	return structName, defBuilder.String()
 }
 
-func renderExpression(node *condition.ConditionNode) (string, error) {
+func renderExpression(node *golinq.ConditionNode) (string, error) {
 	switch node.Type {
-	case condition.Param:
+	case golinq.Param:
 		return fmt.Sprintf("paramValues[%d]", node.ParamIndex-1), nil
-	case condition.Const:
+	case golinq.Const:
 		return renderLiteral(node.Value)
-	case condition.Field:
+	case golinq.Field:
 		return "", fmt.Errorf("cannot pass model field to user function")
-	case condition.Func:
+	case golinq.Func:
 		funcName, ok := node.Value.(string)
 		if !ok {
 			return "", fmt.Errorf("Func node value is not string: %T", node.Value)
@@ -105,22 +108,22 @@ func renderExpression(node *condition.ConditionNode) (string, error) {
 	}
 }
 
-func renderConditionNode(w io.Writer, node *condition.ConditionNode, depth int) error {
+func renderConditionNode(w io.Writer, node *golinq.ConditionNode, depth int) error {
 	if node == nil {
 		_, err := io.WriteString(w, "nil")
 		return err
 	}
-	if node.Type == condition.Func {
+	if node.Type == golinq.Func {
 		expr, err := renderExpression(node)
 		if err != nil {
 			return err
 		}
 		indent := strings.Repeat("\t", depth)
 		childIndent := strings.Repeat("\t", depth+1)
-		if _, err := fmt.Fprintf(w, "&condition.ConditionNode{\n"); err != nil {
+		if _, err := fmt.Fprintf(w, "&golinq.ConditionNode{\n"); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "%sType: condition.Const,\n", childIndent); err != nil {
+		if _, err := fmt.Fprintf(w, "%sType: golinq.Const,\n", childIndent); err != nil {
 			return err
 		}
 		if _, err := fmt.Fprintf(w, "%sValue: %s,\n", childIndent, expr); err != nil {
@@ -135,11 +138,11 @@ func renderConditionNode(w io.Writer, node *condition.ConditionNode, depth int) 
 	indent := strings.Repeat("\t", depth)
 	childIndent := strings.Repeat("\t", depth+1)
 
-	if _, err := fmt.Fprintf(w, "&condition.ConditionNode{\n"); err != nil {
+	if _, err := fmt.Fprintf(w, "&golinq.ConditionNode{\n"); err != nil {
 		return err
 	}
 
-	if _, err := fmt.Fprintf(w, "%sType: condition.%s,\n", childIndent, nodeTypeString(node.Type)); err != nil {
+	if _, err := fmt.Fprintf(w, "%sType: golinq.%s,\n", childIndent, nodeTypeString(node.Type)); err != nil {
 		return err
 	}
 
@@ -153,14 +156,14 @@ func renderConditionNode(w io.Writer, node *condition.ConditionNode, depth int) 
 		}
 	}
 
-	if node.Type == condition.Param {
+	if node.Type == golinq.Param {
 		if _, err := fmt.Fprintf(w, "%sParamIndex: %d,\n", childIndent, node.ParamIndex); err != nil {
 			return err
 		}
 	}
 
 	if len(node.Children) > 0 {
-		if _, err := fmt.Fprintf(w, "%sChildren: []*condition.ConditionNode{\n", childIndent); err != nil {
+		if _, err := fmt.Fprintf(w, "%sChildren: []*golinq.ConditionNode{\n", childIndent); err != nil {
 			return err
 		}
 		for _, child := range node.Children {
@@ -182,16 +185,16 @@ func renderConditionNode(w io.Writer, node *condition.ConditionNode, depth int) 
 	return nil
 }
 
-func renderSelectQueryAST(ast *condition.SelectQueryAST, depth int) (string, error) {
+func renderSelectQueryAST(ast *golinq.SelectQueryAST, depth int) (string, error) {
 	var w bytes.Buffer
 	indent := strings.Repeat("\t", depth)
 	childIndent := strings.Repeat("\t", depth+1)
 
-	if _, err := fmt.Fprintf(&w, "&condition.SelectQueryAST{\n"); err != nil {
+	if _, err := fmt.Fprintf(&w, "&golinq.SelectQueryAST{\n"); err != nil {
 		return "", err
 	}
 
-	if _, err := fmt.Fprintf(&w, "%sSelectFields: []condition.SelectField{\n", childIndent); err != nil {
+	if _, err := fmt.Fprintf(&w, "%sSelectFields: []golinq.SelectField{\n", childIndent); err != nil {
 		return "", err
 	}
 	for _, f := range ast.SelectFields {
@@ -203,11 +206,11 @@ func renderSelectQueryAST(ast *condition.SelectQueryAST, depth int) (string, err
 		return "", err
 	}
 
-	if _, err := fmt.Fprintf(&w, "%sFrom: condition.Relation{Name: %q, Alias: %q},\n", childIndent, ast.From.Name, ast.From.Alias); err != nil {
+	if _, err := fmt.Fprintf(&w, "%sFrom: golinq.Relation{Name: %q, Alias: %q},\n", childIndent, ast.From.Name, ast.From.Alias); err != nil {
 		return "", err
 	}
 
-	if _, err := fmt.Fprintf(&w, "%sJoins: []condition.JoinNode{\n", childIndent); err != nil {
+	if _, err := fmt.Fprintf(&w, "%sJoins: []golinq.JoinNode{\n", childIndent); err != nil {
 		return "", err
 	}
 	for _, j := range ast.Joins {
@@ -222,11 +225,11 @@ func renderSelectQueryAST(ast *condition.SelectQueryAST, depth int) (string, err
 				return "", err
 			}
 		} else {
-			if _, err := fmt.Fprintf(&w, "%s\t\tLeft: &condition.Relation{Name: %q, Alias: %q},\n", childIndent, j.Left.Name, j.Left.Alias); err != nil {
+			if _, err := fmt.Fprintf(&w, "%s\t\tLeft: &golinq.Relation{Name: %q, Alias: %q},\n", childIndent, j.Left.Name, j.Left.Alias); err != nil {
 				return "", err
 			}
 		}
-		if _, err := fmt.Fprintf(&w, "%s\t\tRight: condition.Relation{Name: %q, Alias: %q},\n", childIndent, j.Right.Name, j.Right.Alias); err != nil {
+		if _, err := fmt.Fprintf(&w, "%s\t\tRight: golinq.Relation{Name: %q, Alias: %q},\n", childIndent, j.Right.Name, j.Right.Alias); err != nil {
 			return "", err
 		}
 		if _, err := fmt.Fprintf(&w, "%s\t\tOn: ", childIndent); err != nil {
@@ -267,7 +270,7 @@ func renderSelectQueryAST(ast *condition.SelectQueryAST, depth int) (string, err
 			return "", err
 		}
 	} else {
-		if _, err := fmt.Fprintf(&w, "%sOrderBy: &condition.OrderByClause{\n", childIndent); err != nil {
+		if _, err := fmt.Fprintf(&w, "%sOrderBy: &golinq.OrderByClause{\n", childIndent); err != nil {
 			return "", err
 		}
 		if _, err := fmt.Fprintf(&w, "%s\tTableAlias: %q,\n", childIndent, ast.OrderBy.TableAlias); err != nil {
@@ -294,10 +297,10 @@ func renderSelectQueryAST(ast *condition.SelectQueryAST, depth int) (string, err
 		return "", err
 	}
 	methodStr := "ToList"
-	if ast.Method == condition.First {
+	if ast.Method == golinq.First {
 		methodStr = "First"
 	}
-	if _, err := fmt.Fprintf(&w, "%sMethod: condition.%s,\n", childIndent, methodStr); err != nil {
+	if _, err := fmt.Fprintf(&w, "%sMethod: golinq.%s,\n", childIndent, methodStr); err != nil {
 		return "", err
 	}
 
@@ -330,26 +333,31 @@ func extractParams(qspec *myast.QuerySpec) ([]param, error) {
 	return params, nil
 }
 
-func Generate(queries *myast.ProjectQueries, resDir string) error {
+func Generate(queries *myast.ProjectQueries, resDir string, forcedPkgName string) error {
 	var buf bytes.Buffer
 	var pkgName string
-	for _, q := range queries.QueryCalls {
-		pkgName = q.PackageName
-		break
-	}
-	if pkgName == "" {
-		for _, p := range queries.Predicates {
-			pkgName = p.PackageName
+
+	if forcedPkgName != "" {
+		pkgName = forcedPkgName
+	} else {
+		for _, q := range queries.QueryCalls {
+			pkgName = q.PackageName
 			break
 		}
-	}
-	if pkgName == "" {
-		return fmt.Errorf("cannot determine package name: no queries or predicates found")
+		if pkgName == "" {
+			for _, p := range queries.Predicates {
+				pkgName = p.PackageName
+				break
+			}
+		}
+		if pkgName == "" {
+			return fmt.Errorf("cannot determine package name: no queries or predicates found")
+		}
 	}
 
 	var queriesData []queryData
 	for _, qspec := range queries.QueryCalls {
-		ast, err := condition.BuildSelectAstTree(qspec, queries.Models, queries.FileImports)
+		ast, err := golinq.BuildSelectAstTree(qspec, queries.Models, queries.FileImports)
 		if err != nil {
 			return fmt.Errorf("build AST for query: %w", err)
 		}

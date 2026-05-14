@@ -6,16 +6,16 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Neratus/golinq/internal/condition"
+	"github.com/Neratus/golinq"
 )
 
-func canonicalString(node *condition.SelectQueryAST) string {
+func canonicalString(node *golinq.SelectQueryAST) string {
 	var buf bytes.Buffer
 	writeCanonical(&buf, node)
 	return buf.String()
 }
 
-func writeCanonical(w io.Writer, node *condition.SelectQueryAST) {
+func writeCanonical(w io.Writer, node *golinq.SelectQueryAST) {
 	fmt.Fprintf(w, "SelectFields:")
 	for _, f := range node.SelectFields {
 		fmt.Fprintf(w, "(%s,%s)", f.TableAlias, f.ColumnName)
@@ -38,7 +38,7 @@ func writeCanonical(w io.Writer, node *condition.SelectQueryAST) {
 	writeConditionCanonical(w, node.Where)
 }
 
-func writeConditionCanonical(w io.Writer, node *condition.ConditionNode) {
+func writeConditionCanonical(w io.Writer, node *golinq.ConditionNode) {
 	if node == nil {
 		fmt.Fprintf(w, "nil")
 		return
@@ -47,7 +47,7 @@ func writeConditionCanonical(w io.Writer, node *condition.ConditionNode) {
 	if needValueField(node) {
 		fmt.Fprintf(w, "%v", node.Value)
 	}
-	if node.Type == condition.Param {
+	if node.Type == golinq.Param {
 		fmt.Fprintf(w, "idx%d", node.ParamIndex)
 	}
 	fmt.Fprintf(w, "[")
@@ -57,7 +57,7 @@ func writeConditionCanonical(w io.Writer, node *condition.ConditionNode) {
 	fmt.Fprintf(w, "]")
 }
 
-func getHash(expr *condition.SelectQueryAST) string {
+func getHash(expr *golinq.SelectQueryAST) string {
 	hash := canonicalString(expr)
 	if len(hash) >= 6 {
 		return hash[:6]
