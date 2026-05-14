@@ -38,10 +38,18 @@ func scanStruct(rows *sql.Rows, dest interface{}) error {
 					if part == "skip" {
 						continue
 					}
-					if after, ok := strings.CutPrefix(part, "column="); ok && after == colName {
-						fieldAddrs[i] = field.Addr().Interface()
-						found = true
-						break
+					if after, ok := strings.CutPrefix(part, "column="); ok {
+						// Извлекаем имя колонки без префикса (после последней точки)
+						simpleCol := after
+						if idx := strings.LastIndex(after, "."); idx != -1 {
+							simpleCol = after[idx+1:]
+						}
+						// Сравниваем как с полным именем, так и с простым
+						if after == colName || simpleCol == colName {
+							fieldAddrs[i] = field.Addr().Interface()
+							found = true
+							break
+						}
 					}
 				}
 				if found {
