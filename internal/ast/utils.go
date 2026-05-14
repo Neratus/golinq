@@ -101,3 +101,21 @@ func extractShortName(full string) string {
 	}
 	return full
 }
+
+func findJoinByName(joins map[string]*JoinMeta, name string) (*JoinMeta, bool) {
+	for _, j := range joins {
+		if j.JoinName == name {
+			return j, true
+		}
+	}
+	return nil, false
+}
+
+func findPredicateByName(predicates map[string]*PredicateMeta, name string) (*PredicateMeta, bool) {
+	for _, p := range predicates {
+		if p.PredicateName == name {
+			return p, true
+		}
+	}
+	return nil, false
+}

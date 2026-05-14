@@ -23,11 +23,15 @@ func (queries *ProjectQueries) Validate() error {
 				}
 			}
 		}
-		for _, arg := range predicate.Args {
-			if _, ok := queries.Models[arg.TypeName]; !ok {
-				return &ValidationError{Message: "Predicate " + predicate.PredicateName + " has argument of type " + arg.TypeName + " which does not match any model"}
+		for i, arg := range predicate.Args {
+			if i == 0 {
+				if _, ok := queries.Models[arg.TypeName]; !ok {
+					return &ValidationError{Message: "Predicate " + predicate.PredicateName + " has argument of type " + arg.TypeName + " which does not match any model"}
+				}
+				arg.Declared = true
+			} else {
+				arg.Declared = false
 			}
-			arg.Declared = true
 		}
 		hasBody := predicate.FuncBody != nil
 		hasLink := predicate.LinkedFuncName != nil && *predicate.LinkedFuncName != ""
@@ -104,7 +108,10 @@ func (queries *ProjectQueries) Validate() error {
 			if step.Type == StepJoin {
 				join, ok := queries.Joins[step.Join]
 				if !ok {
-					return &ValidationError{Message: fmt.Sprintf("join %s not defined", step.Join)}
+					join, ok = findJoinByName(queries.Joins, step.Join)
+					if !ok {
+						return &ValidationError{Message: fmt.Sprintf("join %s not defined", step.Join)}
+					}
 				}
 				leftShort := extractShortName(join.LeftModelType)
 				rightShort := extractShortName(join.RightModelType)
@@ -162,6 +169,9 @@ func (queries *ProjectQueries) Validate() error {
 			case StepWhere:
 				pred, ok := queries.Predicates[step.Predicate]
 				if !ok {
+					pred, ok = findPredicateByName(queries.Predicates, step.Predicate)
+				}
+				if !ok {
 					return &ValidationError{Message: "Query call on struct " + call.StructName + " uses predicate " + step.Predicate + " which is not defined"}
 				}
 				call.Steps[i].PredicateRef = pred
@@ -191,6 +201,9 @@ func (queries *ProjectQueries) Validate() error {
 				}
 			case StepJoin:
 				join, ok := queries.Joins[step.Join]
+				if !ok {
+					join, ok = findJoinByName(queries.Joins, step.Join)
+				}
 				if !ok {
 					return &ValidationError{Message: "Query call on struct " + call.StructName + " uses join " + step.Join + " which is not defined"}
 				}
