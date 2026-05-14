@@ -132,7 +132,7 @@ func queryManualCountryLanguages(db *sql.DB, ctx context.Context) ([]CountryLang
         FROM country c
         JOIN country_language cl ON c.id = cl.country_id
         JOIN language l ON cl.language_id = l.id
-        ORDER BY c.name, l.name
+        ORDER BY c.name DESC
     `)
 	if err != nil {
 		return nil, err

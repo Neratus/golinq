@@ -22,4 +22,5 @@ var GetCountriesWithCities = golinq.Select[models.Country](db, "ID", "Name").
 var GetCountriesWithLanguages = golinq.Select[models.Country](db, "Country.ID", "Country.Name", "Language.Name", "Language.Code").
 	Join(joins.CountryCountryLanguageJoin).
 	Join(joins.CountryLanguageLanguageJoin).
+	OrderBy("Country.Name", true).
 	ToList()

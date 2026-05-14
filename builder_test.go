@@ -192,7 +192,10 @@ func TestBuildSelectAstTree_NoJoin(t *testing.T) {
 		PackageName: "queries",
 		PackagePath: "/fake/queries.go",
 		StructName:  "User",
-		SelectCols:  []string{"ID", "Name"},
+		SelectCols: []myast.SelectFieldSpec{
+			{ColumnName: "ID"},
+			{ColumnName: "Name"},
+		},
 		Steps: []myast.QueryStep{
 			{
 				Type:          myast.StepWhere,
@@ -273,7 +276,10 @@ func TestBuildSelectAstTree_WithJoin(t *testing.T) {
 		PackageName: "queries",
 		PackagePath: "/fake/queries.go",
 		StructName:  "User",
-		SelectCols:  []string{"ID", "Name"},
+		SelectCols: []myast.SelectFieldSpec{
+			{ColumnName: "ID"},
+			{ColumnName: "Name"},
+		},
 		Steps: []myast.QueryStep{
 			{
 				Type:    myast.StepJoin,

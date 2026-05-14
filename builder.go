@@ -446,26 +446,36 @@ func BuildSelectAstTree(res *go_ast.QuerySpec, models map[string]*go_ast.ModelMe
 		}
 	}
 
-	// OrderBy
 	var orderByClause *OrderByClause
 	if res.OrderBy != nil {
-		model, ok := aliasToModel[curAlias]
+		// Разбираем "Country.Name" на алиас и имя поля
+		parts := strings.SplitN(res.OrderBy.Field, ".", 2)
+		var alias, fieldName string
+		if len(parts) == 2 {
+			alias = parts[0]
+			fieldName = parts[1]
+		} else {
+			// если нет точки, используем текущий алиас
+			alias = curAlias
+			fieldName = res.OrderBy.Field
+		}
+		model, ok := aliasToModel[alias]
 		if !ok {
-			return nil, fmt.Errorf("cannot determine model for OrderBy: alias %s not found", curAlias)
+			return nil, fmt.Errorf("unknown table alias %q in OrderBy", alias)
 		}
 		var mapping string
 		for _, field := range model.Fields {
-			if field.FieldName == res.OrderBy.Field {
+			if field.FieldName == fieldName {
 				mapping = field.MappingSQL
 				break
 			}
 		}
 		if mapping == "" {
-			return nil, fmt.Errorf("order by field %s not found in model %s", res.OrderBy.Field, model.StructName)
+			return nil, fmt.Errorf("order by field %s not found in model %s", fieldName, model.StructName)
 		}
 		orderByClause = &OrderByClause{
-			TableAlias: curAlias,
-			Field:      res.OrderBy.Field,
+			TableAlias: alias,
+			Field:      fieldName,
 			MappingSQL: mapping,
 			Desc:       res.OrderBy.Desc,
 		}

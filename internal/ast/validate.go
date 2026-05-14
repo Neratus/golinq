@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 	"go/ast"
+	"strings"
 )
 
 func (queries *ProjectQueries) Validate() error {
@@ -219,9 +220,13 @@ func (queries *ProjectQueries) Validate() error {
 
 		// 5. Проверить OrderBy
 		if call.OrderBy != nil {
+			orderField := call.OrderBy.Field
+			if idx := strings.Index(orderField, "."); idx != -1 {
+				orderField = orderField[idx+1:]
+			}
 			found := false
 			for _, f := range model.Fields {
-				if f.FieldName == call.OrderBy.Field {
+				if f.FieldName == orderField {
 					found = true
 					break
 				}

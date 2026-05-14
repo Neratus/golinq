@@ -8,66 +8,16 @@ import (
 	models "golinq/tests/integration/models"
 )
 
-type Result_Country_City struct {
-	CityId   string `golinq:"column=id"`
-	CityName string `golinq:"column=name"`
-}
-
 type Result_Country_CountryLanguage struct {
-	CountryId    string `golinq:"column=id"`
-	CountryName  string `golinq:"column=name"`
-	LanguageName string `golinq:"column=name"`
-	LanguageCode string `golinq:"column=code"`
+	CountryId    string `golinq:"column=Country.id"`
+	CountryName  string `golinq:"column=Country.name"`
+	LanguageName string `golinq:"column=Language.name"`
+	LanguageCode string `golinq:"column=Language.code"`
 }
 
-// Query_Getmodels_Country_CountryPopulationHigh_Select executes a pre-generated query.
-func Query_Getmodels_Country_CountryPopulationHigh_Select(ctx context.Context, db *golinq.DB) ([]models.Country, error) {
-	ast := &golinq.SelectQueryAST{
-		SelectFields: []golinq.SelectField{
-			{TableAlias: "Country", ColumnName: "id"},
-			{TableAlias: "Country", ColumnName: "name"},
-			{TableAlias: "Country", ColumnName: "population"},
-			{TableAlias: "Country", ColumnName: "area"},
-		},
-		From:  golinq.Relation{Name: "country", Alias: "Country"},
-		Joins: []golinq.JoinNode{},
-		Where: &golinq.ConditionNode{
-			Type: golinq.And,
-			Children: []*golinq.ConditionNode{
-				&golinq.ConditionNode{
-					Type:  golinq.Cmp,
-					Value: "GT",
-					Children: []*golinq.ConditionNode{
-						&golinq.ConditionNode{
-							Type:  golinq.Field,
-							Value: "Country.population",
-						},
-						&golinq.ConditionNode{
-							Type:  golinq.Const,
-							Value: 100000000,
-						},
-					},
-				},
-			},
-		},
-		OrderBy: &golinq.OrderByClause{
-			TableAlias: "Country",
-			Field:      "Population",
-			MappingSQL: "population",
-			Desc:       true,
-		},
-		Limit:  0,
-		Offset: 0,
-		Method: golinq.ToList,
-	}
-	paramValues := []interface{}{}
-	sqlStr, params, err := golinq.Generate(ast, db.Dialect(), paramValues)
-	if err != nil {
-		return nil, err
-	}
-
-	return golinq.QueryRows[models.Country](ctx, db, sqlStr, params...)
-
+type Result_Country_City struct {
+	CityId   string `golinq:"column=City.id"`
+	CityName string `golinq:"column=City.name"`
 }
 
 // Query_Getmodels_Country_CountryCityJoin_Select executes a pre-generated query.
@@ -170,10 +120,15 @@ func Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJ
 		Where: &golinq.ConditionNode{
 			Type: golinq.And,
 		},
-		OrderBy: nil,
-		Limit:   0,
-		Offset:  0,
-		Method:  golinq.ToList,
+		OrderBy: &golinq.OrderByClause{
+			TableAlias: "Country",
+			Field:      "Name",
+			MappingSQL: "name",
+			Desc:       true,
+		},
+		Limit:  0,
+		Offset: 0,
+		Method: golinq.ToList,
 	}
 	paramValues := []interface{}{}
 	sqlStr, params, err := golinq.Generate(ast, db.Dialect(), paramValues)
@@ -182,5 +137,55 @@ func Query_Getmodels_Country_CountryCountryLanguageJoin_CountryLanguageLanguageJ
 	}
 
 	return golinq.QueryRows[Result_Country_CountryLanguage](ctx, db, sqlStr, params...)
+
+}
+
+// Query_Getmodels_Country_CountryPopulationHigh_Select executes a pre-generated query.
+func Query_Getmodels_Country_CountryPopulationHigh_Select(ctx context.Context, db *golinq.DB) ([]models.Country, error) {
+	ast := &golinq.SelectQueryAST{
+		SelectFields: []golinq.SelectField{
+			{TableAlias: "Country", ColumnName: "id"},
+			{TableAlias: "Country", ColumnName: "name"},
+			{TableAlias: "Country", ColumnName: "population"},
+			{TableAlias: "Country", ColumnName: "area"},
+		},
+		From:  golinq.Relation{Name: "country", Alias: "Country"},
+		Joins: []golinq.JoinNode{},
+		Where: &golinq.ConditionNode{
+			Type: golinq.And,
+			Children: []*golinq.ConditionNode{
+				&golinq.ConditionNode{
+					Type:  golinq.Cmp,
+					Value: "GT",
+					Children: []*golinq.ConditionNode{
+						&golinq.ConditionNode{
+							Type:  golinq.Field,
+							Value: "Country.population",
+						},
+						&golinq.ConditionNode{
+							Type:  golinq.Const,
+							Value: 100000000,
+						},
+					},
+				},
+			},
+		},
+		OrderBy: &golinq.OrderByClause{
+			TableAlias: "Country",
+			Field:      "Population",
+			MappingSQL: "population",
+			Desc:       true,
+		},
+		Limit:  0,
+		Offset: 0,
+		Method: golinq.ToList,
+	}
+	paramValues := []interface{}{}
+	sqlStr, params, err := golinq.Generate(ast, db.Dialect(), paramValues)
+	if err != nil {
+		return nil, err
+	}
+
+	return golinq.QueryRows[models.Country](ctx, db, sqlStr, params...)
 
 }
