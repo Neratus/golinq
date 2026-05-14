@@ -40,7 +40,13 @@ func buildCond(node *ConditionNode, d *dialect.SQLDialect, params *[]any, paramV
 		if !ok {
 			return "", fmt.Errorf("Field node value is not string: %T", node.Value)
 		}
-		return val, nil
+		parts := strings.SplitN(val, ".", 2)
+		if len(parts) != 2 {
+			return val, nil
+		}
+		alias := parts[0]
+		column := parts[1]
+		return quoteIdentifier(d, alias) + "." + quoteIdentifier(d, column), nil
 
 	case Const:
 		return literalToSQL(node.Value, d)
