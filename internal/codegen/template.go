@@ -9,7 +9,9 @@ package {{.Package}}
 
 import (
     "context"
+    "database/sql"
     "sync"
+
     "github.com/Neratus/golinq"
     {{- range $alias, $path := .ModelImports}}
     {{$alias}} "{{$path}}"
@@ -22,9 +24,9 @@ import (
 
 {{range .Queries}}
 var (
-    once{{.Name}}   sync.Once
-    cachedSQL{{.Name}} string
-    cachedErr{{.Name}} error
+    once{{.Name}} sync.Once
+    stmt{{.Name}} *sql.Stmt
+    stmtErr{{.Name}} error
 )
 
 {{template "queryFunc" .}}
@@ -34,7 +36,7 @@ var (
 var queryFuncTemplate = template.Must(fileTemplate.New("queryFunc").Parse(`
 // {{.Name}} executes a pre-generated query.
 func {{.Name}}(ctx context.Context, db *golinq.DB{{range .Params}}, {{.Name}} {{.Type}}{{end}}) ({{.ResultType}}, error) {
-    onceStmt{{.Name}}.Do(func() {
+    once{{.Name}}.Do(func() {
         ast := {{.ASTLiteral}}
         paramValues := make([]interface{}, {{len .Params}})
         sqlStr, _, err := golinq.Generate(ast, db.Dialect(), paramValues)
