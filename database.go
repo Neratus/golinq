@@ -12,6 +12,10 @@ type DB struct {
 	dialect *dialect.SQLDialect
 }
 
+func (db *DB) DB() *sql.DB {
+	return db.conn
+}
+
 func (db *DB) Dialect() *dialect.SQLDialect {
 	return db.dialect
 }

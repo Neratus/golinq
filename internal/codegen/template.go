@@ -34,22 +34,38 @@ var (
 var queryFuncTemplate = template.Must(fileTemplate.New("queryFunc").Parse(`
 // {{.Name}} executes a pre-generated query.
 func {{.Name}}(ctx context.Context, db *golinq.DB{{range .Params}}, {{.Name}} {{.Type}}{{end}}) ({{.ResultType}}, error) {
-    once{{.Name}}.Do(func() {
+    onceStmt{{.Name}}.Do(func() {
         ast := {{.ASTLiteral}}
         paramValues := make([]interface{}, {{len .Params}})
         sqlStr, _, err := golinq.Generate(ast, db.Dialect(), paramValues)
-        cachedSQL{{.Name}} = sqlStr
-        cachedErr{{.Name}} = err
+        if err != nil {
+            stmtErr{{.Name}} = err
+            return
+        }
+        stmt{{.Name}}, err = db.DB().Prepare(sqlStr)
+        stmtErr{{.Name}} = err
     })
-    if cachedErr{{.Name}} != nil {
-        return nil, cachedErr{{.Name}}
+    if stmtErr{{.Name}} != nil {
+        return nil, stmtErr{{.Name}}
     }
 
     actualParams := []interface{}{ {{range $i, $p := .Params}}{{if $i}}, {{end}}{{$p.Name}}{{end}} }
+    rows, err := stmt{{.Name}}.QueryContext(ctx, actualParams...)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
     {{if eq .Method "ToList"}}
-    return golinq.QueryRows[{{.ModelType}}](ctx, db, cachedSQL{{.Name}}, actualParams...)
+    return golinq.ScanRows[{{.ModelType}}](rows)
     {{else}}
-    return golinq.QueryRow[{{.ModelType}}](ctx, db, cachedSQL{{.Name}}, actualParams...)
+    if !rows.Next() {
+        if err := rows.Err(); err != nil {
+            return nil, err
+        }
+        return nil, sql.ErrNoRows
+    }
+    return golinq.ScanRow[{{.ModelType}}](rows)
     {{end}}
 }
 `))

@@ -104,3 +104,23 @@ func QueryRow[T any](ctx context.Context, db *DB, query string, args ...any) (T,
 	}
 	return dest, nil
 }
+
+func ScanRows[T any](rows *sql.Rows) ([]T, error) {
+	var results []T
+	for rows.Next() {
+		var v T
+		if err := scanStruct(rows, &v); err != nil {
+			return nil, err
+		}
+		results = append(results, v)
+	}
+	return results, rows.Err()
+}
+
+func ScanRow[T any](rows *sql.Rows) (T, error) {
+	var v T
+	if err := scanStruct(rows, &v); err != nil {
+		return v, err
+	}
+	return v, nil
+}
